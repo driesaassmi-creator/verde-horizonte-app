@@ -120,7 +120,7 @@
     document.getElementById('btnCancel').style.display = 'none';
   }
 
-  document.getElementById('klantForm').addEventListener('submit', function (e) {
+  document.getElementById('klantForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     const bedrijf = document.getElementById('fBedrijf').value.trim();
     if (!bedrijf) { VH.toast('Bedrijfsnaam is verplicht', 'error'); return; }
@@ -145,7 +145,7 @@
       VH.toast('Klant toegevoegd', 'success');
     }
 
-    VH.set(KEY, klanten);
+    await VH.set(KEY, klanten);
     resetForm();
     render();
   });
@@ -159,14 +159,14 @@
   document.getElementById('btnCancel').addEventListener('click', resetForm);
   document.getElementById('search').addEventListener('input', render);
 
-  document.getElementById('klantList').addEventListener('click', function (e) {
+  document.getElementById('klantList').addEventListener('click', async function (e) {
     const edit = e.target.closest('[data-edit]');
     const del = e.target.closest('[data-del]');
 
     if (del) {
       if (!confirm('Deze klant verwijderen?')) return;
       klanten = klanten.filter(function (k) { return k.id !== del.dataset.del; });
-      VH.set(KEY, klanten);
+      await VH.set(KEY, klanten);
       render();
       VH.toast('Klant verwijderd', 'success');
       return;

@@ -16,7 +16,6 @@ window.VH = (function () {
   // In-memory cache zodat de bestaande synchrone API blijft werken.
   const cache = {};
   const loading = {};
-  const writeQueue = {};
 
   function tableFor(key) {
     return TABLES[key] || key;
@@ -46,37 +45,28 @@ window.VH = (function () {
     return fallback;
   }
 
-  function set(key, value) {
+  async function set(key, value) {
     cache[key] = value;
     const table = tableFor(key);
-    const prev = writeQueue[key] || Promise.resolve();
-    writeQueue[key] = prev.then(function () {
-      if (SINGLE[key]) {
-        return supabaseClient.from(table).upsert(Object.assign({ id: 'card' }, value));
-      }
-      // Vervang de volledige inhoud: eerst alles verwijderen, daarna invoegen.
-      return supabaseClient.from(table).delete().neq('id', '').then(function (delRes) {
-        if (delRes.error) throw delRes.error;
-        if (value && value.length) return supabaseClient.from(table).insert(value);
-      });
-    }).then(function (res) {
-      if (res && res.error) console.error('VH.set', key, res.error);
-    }).catch(function (err) {
-      console.error('VH.set', key, err);
-    });
+    if (SINGLE[key]) {
+      const { error } = await supabaseClient.from(table).upsert(Object.assign({ id: 'card' }, value));
+      if (error) console.error('VH.set', key, error);
+      return;
+    }
+    // Arrays: vervang de volledige inhoud (eerst verwijderen, daarna invoegen).
+    const { error: delError } = await supabaseClient.from(table).delete().neq('id', '');
+    if (delError) { console.error('VH.set', key, delError); return; }
+    if (value && value.length) {
+      const { error: insError } = await supabaseClient.from(table).insert(value);
+      if (insError) console.error('VH.set', key, insError);
+    }
   }
 
-  function remove(key) {
+  async function remove(key) {
     delete cache[key];
     const table = tableFor(key);
-    const prev = writeQueue[key] || Promise.resolve();
-    writeQueue[key] = prev.then(function () {
-      return supabaseClient.from(table).delete().neq('id', '');
-    }).then(function (res) {
-      if (res && res.error) console.error('VH.remove', key, res.error);
-    }).catch(function (err) {
-      console.error('VH.remove', key, err);
-    });
+    const { error } = await supabaseClient.from(table).delete().neq('id', '');
+    if (error) console.error('VH.remove', key, error);
   }
 
   // Abonneer op asynchroon geladen data voor een sleutel.

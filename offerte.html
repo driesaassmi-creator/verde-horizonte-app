@@ -160,7 +160,7 @@
     }).filter(function (i) { return i.omschrijving !== ''; });
   }
 
-  function saveQuote() {
+  async function saveQuote() {
     const items = collectItems();
     if (!items.length) { VH.toast('Voeg minimaal één regel toe', 'error'); return; }
     const sub = items.reduce(function (s, i) { return s + i.aantal * i.prijs; }, 0);
@@ -178,7 +178,7 @@
       btw: btw,
       totaal: sub + btw
     });
-    VH.set(KEY, quotes);
+    await VH.set(KEY, quotes);
     renderQuotes();
     document.getElementById('offerteForm').reset();
     document.getElementById('itemsBody').innerHTML = '';
@@ -249,15 +249,15 @@
     const btn = e.target.closest('.btn-rm');
     if (btn) { btn.closest('tr').remove(); recalc(); }
   });
-  document.getElementById('offerteForm').addEventListener('submit', function (e) { e.preventDefault(); saveQuote(); });
-  document.getElementById('quoteList').addEventListener('click', function (e) {
+  document.getElementById('offerteForm').addEventListener('submit', async function (e) { e.preventDefault(); await saveQuote(); });
+  document.getElementById('quoteList').addEventListener('click', async function (e) {
     const v = e.target.closest('[data-view]');
     const d = e.target.closest('[data-del]');
     if (v) { openQuote(v.dataset.view); return; }
     if (d) {
       if (!confirm('Deze offerte verwijderen?')) return;
       quotes = quotes.filter(function (x) { return x.id !== d.dataset.del; });
-      VH.set(KEY, quotes);
+      await VH.set(KEY, quotes);
       renderQuotes();
       VH.toast('Offerte verwijderd', 'success');
     }

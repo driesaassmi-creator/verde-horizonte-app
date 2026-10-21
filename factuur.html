@@ -170,7 +170,7 @@
     }).filter(function (i) { return i.omschrijving !== ''; });
   }
 
-  function saveFactuur() {
+  async function saveFactuur() {
     const items = collectItems();
     if (!items.length) { VH.toast('Voeg minimaal één regel toe', 'error'); return; }
     const sub = items.reduce(function (s, i) { return s + i.aantal * i.prijs; }, 0);
@@ -189,7 +189,7 @@
       btw: btw,
       totaal: sub + btw
     });
-    VH.set(KEY, facturen);
+    await VH.set(KEY, facturen);
     renderFacturen();
     document.getElementById('factuurForm').reset();
     document.getElementById('itemsBody').innerHTML = '';
@@ -270,21 +270,21 @@
     const btn = e.target.closest('.btn-rm');
     if (btn) { btn.closest('tr').remove(); recalc(); }
   });
-  document.getElementById('factuurForm').addEventListener('submit', function (e) { e.preventDefault(); saveFactuur(); });
-  document.getElementById('factuurList').addEventListener('click', function (e) {
+  document.getElementById('factuurForm').addEventListener('submit', async function (e) { e.preventDefault(); await saveFactuur(); });
+  document.getElementById('factuurList').addEventListener('click', async function (e) {
     const v = e.target.closest('[data-view]');
     const d = e.target.closest('[data-del]');
     const p = e.target.closest('[data-paid]');
     if (v) { openFactuur(v.dataset.view); return; }
     if (p) {
       const f = facturen.find(function (x) { return x.id === p.dataset.paid; });
-      if (f) { f.status = 'Betaald'; VH.set(KEY, facturen); renderFacturen(); VH.toast('Factuur gemarkeerd als betaald', 'success'); }
+      if (f) { f.status = 'Betaald'; await VH.set(KEY, facturen); renderFacturen(); VH.toast('Factuur gemarkeerd als betaald', 'success'); }
       return;
     }
     if (d) {
       if (!confirm('Deze factuur verwijderen?')) return;
       facturen = facturen.filter(function (x) { return x.id !== d.dataset.del; });
-      VH.set(KEY, facturen);
+      await VH.set(KEY, facturen);
       renderFacturen();
       VH.toast('Factuur verwijderd', 'success');
     }

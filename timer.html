@@ -112,13 +112,13 @@
     renderTime();
     updateBtns();
   }
-  function stopAndSave() {
+  async function stopAndSave() {
     if (running) { clearInterval(tick); tick = null; running = false; }
     if (elapsed < 1) { VH.toast('Geen tijd gemeten', 'error'); updateBtns(); return; }
     const label = document.getElementById('tLabel').value.trim() || 'Zonder omschrijving';
     const project = document.getElementById('tProject').value;
     entries.unshift({ id: VH.uid('t_'), datum: VH.today(), label: label, project: project, seconds: Math.round(elapsed) });
-    VH.set(KEY, entries);
+    await VH.set(KEY, entries);
     elapsed = 0;
     renderTime();
     renderEntries();
@@ -158,12 +158,12 @@
   document.getElementById('btnReset').addEventListener('click', reset);
   document.getElementById('btnStop').addEventListener('click', stopAndSave);
 
-  document.getElementById('entryList').addEventListener('click', function (e) {
+  document.getElementById('entryList').addEventListener('click', async function (e) {
     const btn = e.target.closest('[data-del]');
     if (!btn) return;
     if (!confirm('Deze registratie verwijderen?')) return;
     entries = entries.filter(function (x) { return x.id !== btn.dataset.del; });
-    VH.set(KEY, entries);
+    await VH.set(KEY, entries);
     renderEntries();
     VH.toast('Registratie verwijderd', 'success');
   });

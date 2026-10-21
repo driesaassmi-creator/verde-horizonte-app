@@ -140,7 +140,7 @@
     document.getElementById('btnCancel').style.display = 'none';
   }
 
-  document.getElementById('projectForm').addEventListener('submit', function (e) {
+  document.getElementById('projectForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     const naam = document.getElementById('fNaam').value.trim();
     if (!naam) { VH.toast('Projectnaam is verplicht', 'error'); return; }
@@ -164,7 +164,7 @@
       VH.toast('Project toegevoegd', 'success');
     }
 
-    VH.set(KEY, projecten);
+    await VH.set(KEY, projecten);
     resetForm();
     render();
   });
@@ -172,21 +172,21 @@
   document.getElementById('btnCancel').addEventListener('click', resetForm);
   document.getElementById('filter').addEventListener('change', render);
 
-  document.getElementById('projectList').addEventListener('change', function (e) {
+  document.getElementById('projectList').addEventListener('change', async function (e) {
     if (e.target.classList.contains('proj-status')) {
       const p = projecten.find(function (x) { return x.id === e.target.dataset.id; });
-      if (p) { p.status = e.target.value; VH.set(KEY, projecten); render(); VH.toast('Status bijgewerkt', 'success'); }
+      if (p) { p.status = e.target.value; await VH.set(KEY, projecten); render(); VH.toast('Status bijgewerkt', 'success'); }
     }
   });
 
-  document.getElementById('projectList').addEventListener('click', function (e) {
+  document.getElementById('projectList').addEventListener('click', async function (e) {
     const del = e.target.closest('[data-del]');
     const edit = e.target.closest('[data-edit]');
 
     if (del) {
       if (!confirm('Dit project verwijderen?')) return;
       projecten = projecten.filter(function (p) { return p.id !== del.dataset.del; });
-      VH.set(KEY, projecten);
+      await VH.set(KEY, projecten);
       render();
       VH.toast('Project verwijderd', 'success');
       return;

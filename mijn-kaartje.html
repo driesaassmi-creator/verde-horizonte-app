@@ -130,7 +130,7 @@
     renderPreview();
   }
 
-  document.getElementById('cardForm').addEventListener('submit', function (e) {
+  document.getElementById('cardForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     card = {
       naam: document.getElementById('cNaam').value.trim(),
@@ -142,7 +142,7 @@
       website: document.getElementById('cWebsite').value.trim(),
       adres: document.getElementById('cAdres').value.trim()
     };
-    VH.set(KEY, card);
+    await VH.set(KEY, card);
     VH.toast('Kaartje opgeslagen', 'success');
   });
 

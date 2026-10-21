@@ -154,7 +154,7 @@
     }).join('');
   }
 
-  document.getElementById('leadForm').addEventListener('submit', function (e) {
+  document.getElementById('leadForm').addEventListener('submit', async function (e) {
     e.preventDefault();
     const naam = document.getElementById('fNaam').value.trim();
     if (!naam) { VH.toast('Naam is verplicht', 'error'); return; }
@@ -170,7 +170,7 @@
       notities: document.getElementById('fNotities').value.trim(),
       datum: VH.today()
     });
-    VH.set(KEY, leads);
+    await VH.set(KEY, leads);
     this.reset();
     document.getElementById('fStatus').value = 'Nieuw';
     render();
@@ -179,19 +179,19 @@
 
   document.getElementById('filter').addEventListener('change', render);
 
-  document.getElementById('leadList').addEventListener('change', function (e) {
+  document.getElementById('leadList').addEventListener('change', async function (e) {
     if (e.target.classList.contains('lead-status')) {
       const lead = leads.find(function (l) { return l.id === e.target.dataset.id; });
-      if (lead) { lead.status = e.target.value; VH.set(KEY, leads); render(); VH.toast('Status bijgewerkt', 'success'); }
+      if (lead) { lead.status = e.target.value; await VH.set(KEY, leads); render(); VH.toast('Status bijgewerkt', 'success'); }
     }
   });
 
-  document.getElementById('leadList').addEventListener('click', function (e) {
+  document.getElementById('leadList').addEventListener('click', async function (e) {
     const btn = e.target.closest('[data-del]');
     if (!btn) return;
     if (!confirm('Deze lead verwijderen?')) return;
     leads = leads.filter(function (l) { return l.id !== btn.dataset.del; });
-    VH.set(KEY, leads);
+    await VH.set(KEY, leads);
     render();
     VH.toast('Lead verwijderd', 'success');
   });
