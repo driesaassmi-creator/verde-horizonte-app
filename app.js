@@ -1,397 +1,30 @@
 /* Verde Horizonte Admin — gedeelde helpers (vanilla JS, geen frameworks) */
 window.VH = (function () {
-  // Koppeling van LocalStorage-sleutels naar Supabase-tabellen.
-  const TABLES = {
-    vh_customers: 'klanten',
-    vh_quotes: 'offertes',
-    vh_invoices: 'facturen',
-    vh_projects: 'projecten',
-    vh_leads: 'leads',
-    vh_time_entries: 'uren',
-    vh_card: 'kaartje'
-  };
-  // Sleutels die één enkel object opslaan (i.p.v. een array).
-  const SINGLE = { vh_card: true };
+  const SUPABASE_URL = 'https://jfeicdnntthbxvthsriz.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_HJ_017xez-xq_oA76an6Kw_eb6b0-QL';
+  const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
-  // In-memory cache zodat de bestaande synchrone API blijft werken.
-  const cache = {};
-  const loading = {};
-
-  // Lokale opslag voor offline-modus (blijft beschikbaar zonder netwerk).
-  const OFFLINE_PREFIX = 'vh-offline-';
-  const SYNC_QUEUE_KEY = 'vh-sync-queue';
-
-  function tableFor(key) {
-    return TABLES[key] || key;
-  }
-
-  function offlineGet(key) {
-    try {
-      const raw = localStorage.getItem(OFFLINE_PREFIX + key);
-      return raw ? JSON.parse(raw) : null;
-    } catch (err) {
-      return null;
-    }
-  }
-  function offlineSet(key, value) {
-    try {
-      localStorage.setItem(OFFLINE_PREFIX + key, JSON.stringify(value));
-    } catch (err) {
-      console.error('VH.offlineSet', key, err);
-    }
-  }
-
-  // ---- Sync-wachtrij (offline acties die later naar Supabase moeten) ----
-  function queueGet() {
-    try {
-      const raw = localStorage.getItem(SYNC_QUEUE_KEY);
-      const arr = raw ? JSON.parse(raw) : [];
-      return Array.isArray(arr) ? arr : [];
-    } catch (err) {
-      return [];
-    }
-  }
-  function queueSave(arr) {
-    try {
-      localStorage.setItem(SYNC_QUEUE_KEY, JSON.stringify(arr));
-    } catch (err) {
-      console.error('VH.queueSave', err);
-    }
-  }
-  function queuePush(action) {
-    const arr = queueGet();
-    arr.push(action);
-    queueSave(arr);
-    updateOfflineBar();
-  }
-  function queueClear() {
-    try { localStorage.removeItem(SYNC_QUEUE_KEY); } catch (err) {}
-    updateOfflineBar();
-  }
-  function queueCount() {
-    return queueGet().length;
-  }
-
-  // Referentie naar de 'Sync nu'-knop in de balk (indien aanwezig).
-  let syncBtn = null;
-
-  // ---- Offline-indicator (met handmatige 'Sync nu'-knop) ----
-  function updateOfflineBar() {
-    const pending = queueCount();
-    let el = document.getElementById('vh-offline');
-    if (!pending) {
-      // Geen wachtende wijzigingen: alleen tonen als de verbinding weg is.
-      if (!navigator.onLine) {
-        ensureOfflineBar('⚠ Offline', false);
-      } else if (el) {
-        el.classList.remove('show');
-      }
-      return;
-    }
-    ensureOfflineBar('⚠ ' + pending + ' wijziging(en) wachten op sync', true);
-  }
-  function ensureOfflineBar(text, showSync) {
-    let el = document.getElementById('vh-offline');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'vh-offline';
-      el.className = 'vh-offline';
-      document.body.appendChild(el);
-    }
-    // Tekst + optioneel een 'Sync nu'-knop.
-    el.textContent = '';
-    const label = document.createElement('span');
-    label.textContent = text;
-    el.appendChild(label);
-    if (showSync) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.id = 'vh-sync-btn';
-      btn.className = 'vh-sync-btn';
-      btn.textContent = 'Sync nu';
-      btn.addEventListener('click', function () { processSyncQueue(); });
-      el.appendChild(btn);
-      syncBtn = btn;
-    } else {
-      syncBtn = null;
-    }
-    el.classList.add('show');
-  }
-  function setSyncBusy(busy) {
-    if (syncBtn) {
-      syncBtn.disabled = busy;
-      syncBtn.textContent = busy ? 'Bezig...' : 'Sync nu';
-    }
-  }
-  function setOnline(online) {
-    if (online) {
-      // NIET meer automatisch syncen — alleen nog handmatig via de knop.
-      const pending = queueCount();
-      if (!pending) {
-        const el = document.getElementById('vh-offline');
-        if (el) el.classList.remove('show');
-      } else {
-        updateOfflineBar();
-      }
-    } else {
-      updateOfflineBar();
-    }
-  }
-  function refreshOnlineState() {
-    updateOfflineBar();
-  }
-
-  // Haal het id van de ingelogde gebruiker op (null als niet ingelogd).
-  async function currentUserId() {
-    try {
-      const { data } = await supabaseClient.auth.getUser();
-      return data && data.user ? data.user.id : null;
-    } catch (err) {
-      console.error('VH.currentUserId', err);
-      return null;
-    }
-  }
-
-  // ---- Laad-indicator (spinner bovenaan) ----
-  let loadCount = 0;
-  function showLoading() {
-    loadCount++;
-    let el = document.getElementById('vh-loading');
-    if (!el) {
-      el = document.createElement('div');
-      el.id = 'vh-loading';
-      el.className = 'vh-loading';
-      el.innerHTML = '<div class="vh-spinner"></div>';
-      document.body.appendChild(el);
-    }
-    el.classList.add('show');
-  }
-  function hideLoading() {
-    loadCount = Math.max(0, loadCount - 1);
-    if (loadCount === 0) {
-      const el = document.getElementById('vh-loading');
-      if (el) el.classList.remove('show');
-    }
-  }
-
-  function load(key) {
-    if (loading[key]) return;
-    loading[key] = true;
-    showLoading();
-    const table = tableFor(key);
-    currentUserId()
-      .then(function (user_id) {
-        // Laad alleen de rijen van de ingelogde gebruiker.
-        let query = supabaseClient.from(table).select('*');
-        if (user_id) query = query.eq('user_id', user_id);
-        return query;
-      })
-      .then(function (res) {
-        loading[key] = false;
-        hideLoading();
-        setOnline(true);
-        if (res.error) {
-          return fallbackOffline(key, res.error);
-        }
-        let data;
-        if (SINGLE[key]) {
-          data = (res.data && res.data[0]) ? res.data[0] : {};
-        } else {
-          data = res.data || [];
-        }
-        cache[key] = data;
-        // Bewaar een offline-kopie voor als het netwerk wegvalt.
-        offlineSet(key, data);
-        document.dispatchEvent(new CustomEvent('vh:data:' + key, { detail: data }));
-      })
-      .catch(function (err) {
-        loading[key] = false;
-        hideLoading();
-        console.error('VH.load', key, err);
-        fallbackOffline(key, err);
-      });
-  }
-
-  // Netwerk onbereikbaar: serveer de laatst bekende lokale kopie.
-  function fallbackOffline(key, cause) {
-    setOnline(false);
-    const local = offlineGet(key);
-    if (local == null) {
-      toast('Offline en geen lokale kopie beschikbaar', 'error');
-      return;
-    }
-    cache[key] = local;
-    document.dispatchEvent(new CustomEvent('vh:data:' + key, { detail: local }));
-  }
-
+  // --- Basis helpers ---
   function get(key, fallback) {
-    if (key in cache) return cache[key];
-    load(key);
-    return fallback;
-  }
-
-  // ---- Sync: speel de wachtrij af tegen Supabase zodra we online zijn. ----
-  let syncing = false;
-  async function processSyncQueue() {
-    if (syncing) return;
-    const queue = queueGet();
-    if (!queue.length) return;
-    syncing = true;
-    setSyncBusy(true);
     try {
-      for (let i = 0; i < queue.length; i++) {
-        const action = queue[i];
-        const table = action.table;
-        if (action.type === 'upsert') {
-          const { error } = await supabaseClient.from(table).upsert(action.payload, { onConflict: 'id' });
-          if (error) throw error;
-        } else if (action.type === 'delete') {
-          let q = supabaseClient.from(table).delete().eq('id', action.id);
-          if (action.user_id) q = q.eq('user_id', action.user_id);
-          const { error } = await q;
-          if (error) throw error;
-        } else if (action.type === 'delete-all') {
-          let q = supabaseClient.from(table).delete();
-          if (action.user_id) q = q.eq('user_id', action.user_id);
-          const { error } = await q;
-          if (error) throw error;
-        }
-      }
-      // Alles gelukt: gooi de wachtrij leeg en verberg de balk.
-      queueClear();
-      toast('Wijzigingen gesynchroniseerd', 'success');
-    } catch (err) {
-      console.error('VH.processSyncQueue', err);
-      toast('Sync mislukt — probeer het opnieuw', 'error');
-      // Behoud de wachtrij voor een volgende poging.
-    } finally {
-      syncing = false;
-      setSyncBusy(false);
-      updateOfflineBar();
+      const v = localStorage.getItem(key);
+      return v === null ? fallback : JSON.parse(v);
+    } catch (e) {
+      return fallback;
     }
   }
-
-  async function set(key, value) {
-    cache[key] = value;
-
-    const user_id = await currentUserId();
-    const table = tableFor(key);
-
-    if (SINGLE[key]) {
-      // id = user_id + '-card', zodat gebruikers elkaars kaartje nooit
-      // kunnen overschrijven (geen vaste id 'card' meer).
-      const id = user_id ? (user_id + '-card') : 'card';
-      const payload = Object.assign({ id: id }, value);
-      if (user_id) payload.user_id = user_id;
-      try {
-        const { error } = await supabaseClient.from(table).upsert(payload);
-        if (error) {
-          console.error('VH.set', key, error);
-          queuePush({ type: 'upsert', key: key, table: table, payload: payload });
-          toast('Offline — opgeslagen op dit apparaat', 'error');
-        } else {
-          setOnline(true);
-        }
-      } catch (err) {
-        console.error('VH.set', key, err);
-        queuePush({ type: 'upsert', key: key, table: table, payload: payload });
-        toast('Offline — opgeslagen op dit apparaat', 'error');
-      }
-      offlineSet(key, value);
-      return true;
-    }
-
-    // Arrays: pure upsert (onConflict op 'id'). Bestaande rijen worden bijgewerkt,
-    // nieuwe rijen toegevoegd. Rijen van andere gebruikers worden nooit geraakt.
-    const rows = Array.isArray(value) ? value : [];
-    const payload = rows.map(function (row) {
-      const copy = Object.assign({}, row);
-      if (user_id) copy.user_id = user_id;
-      return copy;
-    });
-
-    if (payload.length) {
-      try {
-        const { error: upsertError } = await supabaseClient.from(table).upsert(payload, { onConflict: 'id' });
-        if (upsertError) {
-          console.error('VH.set', key, upsertError);
-          queuePush({ type: 'upsert', key: key, table: table, payload: payload });
-          toast('Offline — opgeslagen op dit apparaat', 'error');
-        } else {
-          setOnline(true);
-        }
-      } catch (err) {
-        console.error('VH.set', key, err);
-        queuePush({ type: 'upsert', key: key, table: table, payload: payload });
-        toast('Offline — opgeslagen op dit apparaat', 'error');
-      }
-    } else {
-      // Lege array: niets te upserten.
-      setOnline(true);
-    }
-
-    offlineSet(key, value);
-    return true;
+  function set(key, value) {
+    localStorage.setItem(key, JSON.stringify(value));
+  }
+  function remove(key) {
+    localStorage.removeItem(key);
   }
 
-  async function remove(key) {
-    delete cache[key];
-    try { localStorage.removeItem(OFFLINE_PREFIX + key); } catch (err) {}
-    const table = tableFor(key);
-    const user_id = await currentUserId();
-    let query = supabaseClient.from(table).delete();
-    if (user_id) query = query.eq('user_id', user_id);
-    try {
-      const { error } = await query;
-      if (error) {
-        console.error('VH.remove', key, error);
-        queuePush({ type: 'delete-all', key: key, table: table, user_id: user_id });
-        toast('Offline — verwijdering wordt gesynchroniseerd', 'error');
-        return true;
-      }
-      setOnline(true);
-    } catch (err) {
-      console.error('VH.remove', key, err);
-      queuePush({ type: 'delete-all', key: key, table: table, user_id: user_id });
-      toast('Offline — verwijdering wordt gesynchroniseerd', 'error');
-    }
-    return true;
-  }
-
-  // Verwijder één rij (veilig: filtert op id én op de ingelogde gebruiker).
-  // key = storage-sleutel (bepaalt de tabel via TABLES).
-  async function removeRow(key, id) {
-    const table = tableFor(key);
-    const user_id = await currentUserId();
-    let query = supabaseClient.from(table).delete().eq('id', id);
-    if (user_id) query = query.eq('user_id', user_id);
-    try {
-      const { error } = await query;
-      if (error) {
-        console.error('VH.removeRow', key, id, error);
-        queuePush({ type: 'delete', key: key, table: table, id: id, user_id: user_id });
-        toast('Offline — verwijdering wordt gesynchroniseerd', 'error');
-        return true;
-      }
-      setOnline(true);
-    } catch (err) {
-      console.error('VH.removeRow', key, id, err);
-      queuePush({ type: 'delete', key: key, table: table, id: id, user_id: user_id });
-      toast('Offline — verwijdering wordt gesynchroniseerd', 'error');
-    }
-    return true;
-  }
-
-  // Abonneer op asynchroon geladen data voor een sleutel.
-  function onData(key, cb) {
-    document.addEventListener('vh:data:' + key, function (e) { cb(e.detail); });
-  }
-
+  // --- Escaping & formatting ---
   const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
   function esc(str) {
     return String(str == null ? '' : str).replace(/[&<>"']/g, (c) => ESC[c]);
   }
-
   function fmtEUR(n) {
     return new Intl.NumberFormat('nl-NL', { style: 'currency', currency: 'EUR' }).format(Number(n) || 0);
   }
@@ -426,67 +59,219 @@ window.VH = (function () {
     }, 2400);
   }
 
-  // ---- Supabase Auth: inlog-controle en uitloggen ----
-  function isLoginPage() {
-    const p = (location.pathname || '').split('/').pop().toLowerCase();
-    return p === 'login.html' || p === 'login' ||
-           p === 'reset-password.html' || p === 'reset-password' ||
-           p === 'update-password.html' || p === 'update-password';
-  }
-
-  // Stuur niet-ingelogde gebruikers door naar login.html (behalve op de login-pagina zelf).
-  async function requireAuth() {
-    if (isLoginPage()) return true;
+  // --- Offline / Sync Queue ---
+  const SYNC_KEY = 'vh-sync-queue';
+  function queueGet() {
     try {
-      const { data } = await supabaseClient.auth.getSession();
-      if (data && data.session && data.session.user) return true;
-    } catch (err) {
-      console.error('VH.requireAuth getSession', err);
+      const v = JSON.parse(localStorage.getItem(SYNC_KEY));
+      return Array.isArray(v) ? v : [];
+    } catch (e) { return []; }
+  }
+  function queueSave(arr) { localStorage.setItem(SYNC_KEY, JSON.stringify(arr)); }
+  function queuePush(action) {
+    const q = queueGet();
+    q.push(action);
+    queueSave(q);
+    updateOfflineBar();
+  }
+  function queueClear() {
+    localStorage.removeItem(SYNC_KEY);
+    updateOfflineBar();
+  }
+  function queueCount() { return queueGet().length; }
+
+  // --- Auth ---
+  async function getCurrentUser() {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    return user;
+  }
+  async function requireAuth() {
+    const p = window.location.pathname.split('/').pop() || 'index.html';
+    const publicPages = ['login.html', 'reset-password.html', 'update-password.html'];
+    if (publicPages.includes(p)) return true;
+    
+    const user = await getCurrentUser();
+    if (!user) {
+      window.location.replace('login.html');
+      return false;
     }
-    location.replace('login.html');
-    return false;
+    return true;
   }
 
-  async function logout() {
-    try { await supabaseClient.auth.signOut(); } catch (err) { console.error('VH.logout', err); }
-    location.replace('login.html');
+  // --- Database mapping ---
+  function tableFor(key) {
+    const map = {
+      vh_customers: 'klanten',
+      vh_quotes: 'offertes',
+      vh_invoices: 'facturen',
+      vh_projects: 'projecten',
+      vh_leads: 'leads',
+      vh_time_entries: 'uren',
+      vh_card: 'kaartje'
+    };
+    return map[key] || key;
   }
 
-  // Stuur een wachtwoord-reset e-mail naar de gebruiker.
-  async function resetPassword(email) {
-    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
-      redirectTo: window.location.origin + '/update-password.html'
+  // --- Data load & save ---
+  async function load(key, onData) {
+    const table = tableFor(key);
+    const user = await getCurrentUser();
+    if (!user) return;
+    
+    // Update UI
+    let { data, error } = await supabaseClient
+      .from(table)
+      .select('*')
+      .eq('user_id', user.id);
+
+    if (error) {
+      console.error('Load error:', error);
+      // Fallback offline
+      const cached = get('cache_' + key, null);
+      if (cached) {
+        if (onData) onData(cached);
+      } else {
+        toast('Laden mislukt', 'error');
+      }
+      return;
+    }
+
+    // Cache data
+    set('cache_' + key, data);
+    if (onData) onData(data);
+  }
+
+  async function set(key, value) {
+    const table = tableFor(key);
+    const user = await getCurrentUser();
+    if (!user) return false;
+
+    const payload = Array.isArray(value) 
+      ? value.map(v => ({ ...v, user_id: user.id }))
+      : { ...value, user_id: user.id, id: user.id + '-card' };
+
+    try {
+      const { error } = await supabaseClient.from(table).upsert(payload, { onConflict: 'id' });
+      if (error) throw error;
+      
+      // Update local cache
+      set('cache_' + key, value);
+      return true;
+    } catch (err) {
+      console.error('Save error:', err);
+      // Offline mode
+      set('cache_' + key, value);
+      queuePush({ type: 'upsert', key, table, payload, user_id: user.id });
+      toast('Offline — opgeslagen op dit apparaat', 'info');
+      return true;
+    }
+  }
+
+  async function removeRow(key, id) {
+    const table = tableFor(key);
+    const user = await getCurrentUser();
+    if (!user) return false;
+
+    try {
+      const { error } = await supabaseClient.from(table).delete().eq('id', id).eq('user_id', user.id);
+      if (error) throw error;
+      
+      // Remove from local cache
+      const cached = get('cache_' + key, []);
+      const newCache = cached.filter(item => item.id !== id);
+      set('cache_' + key, newCache);
+      return true;
+    } catch (err) {
+      console.error('Delete error:', err);
+      // Offline mode
+      queuePush({ type: 'delete', key, table, id, user_id: user.id });
+      toast('Offline — verwijdering wordt gesynchroniseerd', 'info');
+      return true;
+    }
+  }
+
+  // --- Sync logic ---
+  async function processSyncQueue() {
+    const q = queueGet();
+    if (!q.length) return;
+
+    const syncBtn = document.getElementById('vh-sync-btn');
+    if (syncBtn) { syncBtn.disabled = true; syncBtn.textContent = 'Bezig...'; }
+
+    let success = true;
+    for (const action of q) {
+      try {
+        if (action.type === 'upsert') {
+          const { error } = await supabaseClient.from(action.table).upsert(action.payload, { onConflict: 'id' });
+          if (error) throw error;
+        } else if (action.type === 'delete') {
+          const { error } = await supabaseClient.from(action.table).delete().eq('id', action.id).eq('user_id', action.user_id);
+          if (error) throw error;
+        }
+      } catch (err) {
+        console.error('Sync error:', err);
+        success = false;
+        break;
+      }
+    }
+
+    if (success) {
+      queueClear();
+      toast('Wijzigingen gesynchroniseerd', 'success');
+    } else {
+      toast('Synchronisatie mislukt, probeer opnieuw', 'error');
+    }
+
+    if (syncBtn) { syncBtn.disabled = false; syncBtn.textContent = 'Sync nu'; }
+    updateOfflineBar();
+  }
+
+  // --- Offline UI ---
+  function ensureOfflineBar() {
+    let bar = document.getElementById('vh-offline-bar');
+    if (!bar) {
+      bar = document.createElement('div');
+      bar.id = 'vh-offline-bar';
+      bar.className = 'vh-offline';
+      document.body.prepend(bar);
+    }
+    return bar;
+  }
+
+  function updateOfflineBar() {
+    const bar = ensureOfflineBar();
+    const count = queueCount();
+    
+    if (count > 0) {
+      bar.innerHTML = `
+        <span>⚠ ${count} wijziging(en) wachten op sync</span>
+        <button id="vh-sync-btn" class="vh-sync-btn">Sync nu</button>
+      `;
+      bar.style.display = 'flex';
+      const btn = document.getElementById('vh-sync-btn');
+      if (btn) btn.onclick = processSyncQueue;
+    } else {
+      bar.style.display = 'none';
+    }
+  }
+
+  function logout() {
+    supabaseClient.auth.signOut().then(() => {
+      window.location.href = 'login.html';
     });
-    if (error) console.error('VH.resetPassword', error);
-    return { error: error || null };
   }
 
-  // Stel een nieuw wachtwoord in voor de ingelogde (herstel-)sessie.
-  async function updatePassword(newPassword) {
-    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
-    if (error) console.error('VH.updatePassword', error);
-    return { error: error || null };
-  }
-
-  // Volg de online-status en toon/verberg de offline-indicator.
-  window.addEventListener('online', function () { setOnline(true); });
-  window.addEventListener('offline', function () { setOnline(false); });
-  refreshOnlineState();
-
+  // --- Init ---
+  // Controleer auth bij het laden
   requireAuth();
-
-  if ('serviceWorker' in navigator) {
-    window.addEventListener('load', function () {
-      navigator.serviceWorker.register('./sw.js').catch(function () {});
-    });
-  }
+  // Toon de offline-balk als er iets in de wachtrij staat
+  updateOfflineBar();
 
   return {
     get: get,
     set: set,
     remove: remove,
     removeRow: removeRow,
-    onData: onData,
     esc: esc,
     fmtEUR: fmtEUR,
     fmtNum: fmtNum,
@@ -495,8 +280,6 @@ window.VH = (function () {
     fmtDuration: fmtDuration,
     toast: toast,
     logout: logout,
-    requireAuth: requireAuth,
-    resetPassword: resetPassword,
-    updatePassword: updatePassword
+    processSyncQueue: processSyncQueue
   };
 })();
