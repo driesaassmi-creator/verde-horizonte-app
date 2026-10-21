@@ -80,11 +80,14 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
   <script src="app.js"></script>
   <script>
   const KEY = 'vh_projects';
   const STATUSES = ['Nieuw', 'Lopend', 'Afgerond', 'On hold'];
   let projecten = VH.get(KEY, []);
+  VH.onData(KEY, function (data) { projecten = data; render(); });
 
   function badgeFor(s) {
     switch (s) {

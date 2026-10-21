@@ -1,10 +1,11 @@
 /* Verde Horizonte Admin — service worker (PWA offline) */
-const CACHE = 'vh-admin-v1';
+const CACHE = 'vh-admin-v2';
 const ASSETS = [
   './',
   './index.html',
   './style.css',
   './app.js',
+  './supabase.js',
   './manifest.json',
   './icon.svg'
 ];

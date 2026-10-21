@@ -58,10 +58,14 @@
     </section>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
   <script src="app.js"></script>
   <script>
   const KEY = 'vh_time_entries';
   let entries = VH.get(KEY, []);
+  VH.onData(KEY, function (data) { entries = data; renderEntries(); });
+  VH.onData('vh_projects', function () { renderProjects(); });
   let running = false;
   let elapsed = 0;
   let tick = null;
@@ -70,6 +74,7 @@
   function renderProjects() {
     const projects = VH.get('vh_projects', []);
     const sel = document.getElementById('tProject');
+    sel.innerHTML = '<option value="">— Geen project —</option>';
     projects.forEach(function (p) {
       const o = document.createElement('option');
       o.value = p.naam;

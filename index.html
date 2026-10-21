@@ -22,10 +22,12 @@
     <section class="tiles" id="tiles" aria-label="Tools"></section>
 
     <footer class="foot-note">
-      Alle gegevens worden lokaal in je browser opgeslagen (LocalStorage).
+      Alle gegevens worden veilig opgeslagen in Supabase.
     </footer>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
   <script src="app.js"></script><script>if ("serviceWorker" in navigator) { window.addEventListener("load", function() { navigator.serviceWorker.register("./sw.js"); }); }</script>
   <script>
     const TILES = [
@@ -56,11 +58,16 @@
       { key: 'vh_invoices',  label: 'Facturen',  cls: 'gold' }
     ];
 
-    document.getElementById('stats').innerHTML = STATS.map(function (s) {
-      const n = (VH.get(s.key, []) || []).length;
-      return '<div class="stat"><div class="num ' + s.cls + '">' + n + '</div>' +
-        '<div class="label">' + s.label + '</div></div>';
-    }).join('');
+    function renderStats() {
+      document.getElementById('stats').innerHTML = STATS.map(function (s) {
+        const n = (VH.get(s.key, []) || []).length;
+        return '<div class="stat"><div class="num ' + s.cls + '">' + n + '</div>' +
+          '<div class="label">' + s.label + '</div></div>';
+      }).join('');
+    }
+
+    STATS.forEach(function (s) { VH.onData(s.key, renderStats); });
+    renderStats();
   </script>
 </body>
 </html>

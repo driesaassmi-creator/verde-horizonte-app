@@ -1,18 +1,78 @@
 /* Verde Horizonte Admin — gedeelde helpers (vanilla JS, geen frameworks) */
 window.VH = (function () {
+  // Koppeling van LocalStorage-sleutels naar Supabase-tabellen.
+  const TABLES = {
+    vh_customers: 'klanten',
+    vh_quotes: 'offertes',
+    vh_invoices: 'facturen',
+    vh_projects: 'projecten',
+    vh_leads: 'leads',
+    vh_time_entries: 'uren',
+    vh_card: 'kaartje'
+  };
+  // Sleutels die één enkel object opslaan (i.p.v. een array).
+  const SINGLE = { vh_card: true };
+
+  // In-memory cache zodat de bestaande synchrone API blijft werken.
+  const cache = {};
+
+  function tableFor(key) {
+    return TABLES[key] || key;
+  }
+
+  function load(key) {
+    const table = tableFor(key);
+    supabase.from(table).select('*').then(function (res) {
+      if (res.error) { console.error('VH.load', key, res.error); return; }
+      let data;
+      if (SINGLE[key]) {
+        data = (res.data && res.data[0]) ? res.data[0] : {};
+      } else {
+        data = res.data || [];
+      }
+      cache[key] = data;
+      document.dispatchEvent(new CustomEvent('vh:data:' + key, { detail: data }));
+    });
+  }
+
   function get(key, fallback) {
-    try {
-      const v = localStorage.getItem(key);
-      return v === null ? fallback : JSON.parse(v);
-    } catch (e) {
-      return fallback;
+    if (key in cache) return cache[key];
+    load(key);
+    return fallback;
+  }
+
+  function set(key, value) {
+    cache[key] = value;
+    const table = tableFor(key);
+    if (SINGLE[key]) {
+      const row = Object.assign({ id: 'card' }, value);
+      supabase.from(table).upsert(row).then(function (res) {
+        if (res.error) console.error('VH.set', key, res.error);
+      });
+    } else {
+      // Vervang de volledige inhoud: eerst alles verwijderen, daarna invoegen.
+      supabase.from(table).delete().neq('id', '').then(function (delRes) {
+        if (delRes.error) { console.error('VH.set', key, delRes.error); return; }
+        if (value && value.length) {
+          supabase.from(table).insert(value).then(function (insRes) {
+            if (insRes.error) console.error('VH.set', key, insRes.error);
+          });
+        }
+      });
     }
   }
-  function set(key, value) {
-    localStorage.setItem(key, JSON.stringify(value));
-  }
+
   function remove(key) {
-    localStorage.removeItem(key);
+    delete cache[key];
+    const table = tableFor(key);
+    supabase.from(table).delete().neq('id', '').then(function (res) {
+      if (res.error) console.error('VH.remove', key, res.error);
+    });
+  }
+
+  // Abonneer op asynchroon geladen data voor een sleutel.
+  function onData(key, cb) {
+    document.addEventListener('vh:data:' + key, function (e) { cb(e.detail); });
   }
 
   const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -64,6 +124,7 @@ window.VH = (function () {
     get: get,
     set: set,
     remove: remove,
+    onData: onData,
     esc: esc,
     fmtEUR: fmtEUR,
     fmtNum: fmtNum,
