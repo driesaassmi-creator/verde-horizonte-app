@@ -15,14 +15,19 @@ window.VH = (function () {
 
   // In-memory cache zodat de bestaande synchrone API blijft werken.
   const cache = {};
+  const loading = {};
+  const writeQueue = {};
 
   function tableFor(key) {
     return TABLES[key] || key;
   }
 
   function load(key) {
+    if (loading[key]) return;
+    loading[key] = true;
     const table = tableFor(key);
-    supabase.from(table).select('*').then(function (res) {
+    supabaseClient.from(table).select('*').then(function (res) {
+      loading[key] = false;
       if (res.error) { console.error('VH.load', key, res.error); return; }
       let data;
       if (SINGLE[key]) {
@@ -44,29 +49,33 @@ window.VH = (function () {
   function set(key, value) {
     cache[key] = value;
     const table = tableFor(key);
-    if (SINGLE[key]) {
-      const row = Object.assign({ id: 'card' }, value);
-      supabase.from(table).upsert(row).then(function (res) {
-        if (res.error) console.error('VH.set', key, res.error);
-      });
-    } else {
+    const prev = writeQueue[key] || Promise.resolve();
+    writeQueue[key] = prev.then(function () {
+      if (SINGLE[key]) {
+        return supabaseClient.from(table).upsert(Object.assign({ id: 'card' }, value));
+      }
       // Vervang de volledige inhoud: eerst alles verwijderen, daarna invoegen.
-      supabase.from(table).delete().neq('id', '').then(function (delRes) {
-        if (delRes.error) { console.error('VH.set', key, delRes.error); return; }
-        if (value && value.length) {
-          supabase.from(table).insert(value).then(function (insRes) {
-            if (insRes.error) console.error('VH.set', key, insRes.error);
-          });
-        }
+      return supabaseClient.from(table).delete().neq('id', '').then(function (delRes) {
+        if (delRes.error) throw delRes.error;
+        if (value && value.length) return supabaseClient.from(table).insert(value);
       });
-    }
+    }).then(function (res) {
+      if (res && res.error) console.error('VH.set', key, res.error);
+    }).catch(function (err) {
+      console.error('VH.set', key, err);
+    });
   }
 
   function remove(key) {
     delete cache[key];
     const table = tableFor(key);
-    supabase.from(table).delete().neq('id', '').then(function (res) {
-      if (res.error) console.error('VH.remove', key, res.error);
+    const prev = writeQueue[key] || Promise.resolve();
+    writeQueue[key] = prev.then(function () {
+      return supabaseClient.from(table).delete().neq('id', '');
+    }).then(function (res) {
+      if (res && res.error) console.error('VH.remove', key, res.error);
+    }).catch(function (err) {
+      console.error('VH.remove', key, err);
     });
   }
 
