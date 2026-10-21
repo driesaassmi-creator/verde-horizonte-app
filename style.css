@@ -62,6 +62,7 @@ button { font-family: inherit; cursor: pointer; }
 .topbar-title { display: flex; flex-direction: column; line-height: 1.15; }
 .topbar-eyebrow { font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--gold); }
 .topbar-title h1 { font-size: 20px; font-weight: 700; }
+.topbar-actions { margin-left: auto; display: flex; align-items: center; gap: 8px; }
 
 /* ---- Layout ---- */
 .container { max-width: 1080px; margin: 0 auto; padding: 26px 20px 40px; }

@@ -47,9 +47,21 @@ window.VH = (function () {
 
   async function set(key, value) {
     cache[key] = value;
+
+    // Koppel data automatisch aan de ingelogde gebruiker.
+    let user_id = null;
+    try {
+      const { data } = await supabaseClient.auth.getUser();
+      user_id = data && data.user ? data.user.id : null;
+    } catch (err) {
+      console.error('VH.set getUser', err);
+    }
+
     const table = tableFor(key);
     if (SINGLE[key]) {
-      const { error } = await supabaseClient.from(table).upsert(Object.assign({ id: 'card' }, value));
+      const payload = Object.assign({ id: 'card' }, value);
+      if (user_id) payload.user_id = user_id;
+      const { error } = await supabaseClient.from(table).upsert(payload);
       if (error) console.error('VH.set', key, error);
       return;
     }
@@ -57,7 +69,14 @@ window.VH = (function () {
     const { error: delError } = await supabaseClient.from(table).delete().neq('id', '');
     if (delError) { console.error('VH.set', key, delError); return; }
     if (value && value.length) {
-      const { error: insError } = await supabaseClient.from(table).insert(value);
+      const rows = Array.isArray(value)
+        ? value.map(function (row) {
+            const copy = Object.assign({}, row);
+            if (user_id) copy.user_id = user_id;
+            return copy;
+          })
+        : value;
+      const { error: insError } = await supabaseClient.from(table).insert(rows);
       if (insError) console.error('VH.set', key, insError);
     }
   }
@@ -113,6 +132,32 @@ window.VH = (function () {
     }, 2400);
   }
 
+  // ---- Supabase Auth: inlog-controle en uitloggen ----
+  function isLoginPage() {
+    const p = (location.pathname || '').split('/').pop().toLowerCase();
+    return p === 'login.html' || p === 'login';
+  }
+
+  // Stuur niet-ingelogde gebruikers door naar login.html (behalve op de login-pagina zelf).
+  async function requireAuth() {
+    if (isLoginPage()) return true;
+    try {
+      const { data } = await supabaseClient.auth.getSession();
+      if (data && data.session && data.session.user) return true;
+    } catch (err) {
+      console.error('VH.requireAuth getSession', err);
+    }
+    location.replace('login.html');
+    return false;
+  }
+
+  async function logout() {
+    try { await supabaseClient.auth.signOut(); } catch (err) { console.error('VH.logout', err); }
+    location.replace('login.html');
+  }
+
+  requireAuth();
+
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
       navigator.serviceWorker.register('./sw.js').catch(function () {});
@@ -130,6 +175,8 @@ window.VH = (function () {
     today: today,
     uid: uid,
     fmtDuration: fmtDuration,
-    toast: toast
+    toast: toast,
+    logout: logout,
+    requireAuth: requireAuth
   };
 })();

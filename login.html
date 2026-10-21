@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Inloggen · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="brand-hero">
+    <div class="brand-logo">🌅</div>
+    <h1>Verde Horizonte</h1>
+    <p class="tagline">Log in om verder te gaan</p>
+  </header>
+
+  <main class="container" style="max-width:420px">
+    <section class="card">
+      <h3><span class="bar"></span> Inloggen</h3>
+      <form id="loginForm" autocomplete="on">
+        <div class="field">
+          <label for="email">E-mail</label>
+          <input id="email" type="email" placeholder="naam@bedrijf.nl" autocomplete="email" required />
+        </div>
+        <div class="field">
+          <label for="password">Wachtwoord</label>
+          <input id="password" type="password" placeholder="••••••••" autocomplete="current-password" required />
+        </div>
+        <button type="submit" class="btn btn-gold" id="btnLogin" style="width:100%">Inloggen</button>
+        <p class="sub" id="loginMsg" style="margin-top:14px"></p>
+      </form>
+    </section>
+
+    <footer class="foot-note">
+      Alle gegevens worden veilig opgeslagen in Supabase.
+    </footer>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="supabase.js"></script>
+  <script src="app.js"></script>
+  <script>
+    document.getElementById('loginForm').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const password = document.getElementById('password').value;
+      const btn = document.getElementById('btnLogin');
+      const msg = document.getElementById('loginMsg');
+
+      btn.disabled = true;
+      btn.textContent = 'Bezig met inloggen...';
+      msg.textContent = '';
+
+      const { data, error } = await supabaseClient.auth.signInWithPassword({
+        email: email,
+        password: password
+      });
+
+      if (error) {
+        btn.disabled = false;
+        btn.textContent = 'Inloggen';
+        msg.textContent = 'Inloggen mislukt: ' + error.message;
+        return;
+      }
+
+      location.replace('index.html');
+    });
+  </script>
+</body>
+</html>
