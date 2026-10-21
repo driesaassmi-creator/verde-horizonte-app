@@ -100,8 +100,10 @@
     <div class="modal">
       <div class="modal-head">
         <h3>Factuur</h3>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ Afdrukken</button>
+          <button class="btn btn-gold btn-sm" id="modalWhatsapp">📱 Verstuur via WhatsApp</button>
+          <button class="btn btn-gold btn-sm" id="modalEmail">✉️ Verstuur via E-mail</button>
           <button class="modal-close" id="modalClose">✕</button>
         </div>
       </div>
@@ -116,6 +118,7 @@
   const KEY = 'vh_invoices';
   const BTW = 0.21;
   let facturen = VH.get(KEY, []);
+  let currentFactuur = null;
   VH.onData(KEY, function (data) { facturen = data; renderFacturen(); });
 
   function addDays(days) {
@@ -259,10 +262,28 @@
   function openFactuur(id) {
     const f = facturen.find(function (x) { return x.id === id; });
     if (!f) return;
+    currentFactuur = f;
     document.getElementById('modalDoc').innerHTML = docHTML(f);
     document.getElementById('modal').classList.add('open');
   }
   function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+  function sendText() {
+    if (!currentFactuur) return '';
+    const naam = currentFactuur.contact || currentFactuur.bedrijf || 'klant';
+    return 'Beste ' + naam + ',\n\nBijgevoegd vindt u factuur ' + currentFactuur.nummer +
+      ' met een totaalbedrag van ' + VH.fmtEUR(currentFactuur.totaal) +
+      '.\n\nMet vriendelijke groet,\nVerde Horizonte';
+  }
+  document.getElementById('modalWhatsapp').addEventListener('click', function () {
+    if (currentFactuur) window.open('https://wa.me/?text=' + encodeURIComponent(sendText()), '_blank');
+  });
+  document.getElementById('modalEmail').addEventListener('click', function () {
+    if (!currentFactuur) return;
+    const subject = 'Factuur ' + currentFactuur.nummer;
+    const to = currentFactuur.email ? currentFactuur.email : '';
+    window.location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(sendText());
+  });
 
   document.getElementById('btnAddItem').addEventListener('click', function () { addItemRow(); });
   document.getElementById('itemsBody').addEventListener('input', recalc);

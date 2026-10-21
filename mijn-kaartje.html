@@ -25,14 +25,25 @@
         <p class="sub">Vul je gegevens in en zie live je kaartje.</p>
       </div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-ghost" id="btnPrint">🖨️ Afdrukken</button>
-        <button class="btn btn-ghost" id="btnCopy">📋 Kopieer</button>
-      </div>
+          <button class="btn btn-ghost" id="btnPrint">🖨️ Afdrukken</button>
+          <button class="btn btn-ghost" id="btnCopy">📋 Kopieer</button>
+          <button class="btn btn-gold" id="btnQR">🔲 Genereer QR-code</button>
+        </div>
     </div>
 
     <section class="card">
       <h3><span class="bar"></span> Voorbeeld</h3>
       <div class="vcard" id="preview"></div>
+    </section>
+
+    <section class="card" id="qrCard" style="display:none">
+      <h3><span class="bar"></span> QR-code</h3>
+      <div style="display:flex;justify-content:center;padding:16px">
+        <div style="background:#fff;padding:16px;border-radius:8px;display:inline-block">
+          <img id="qrImg" alt="QR-code" style="display:block;width:260px;height:260px" />
+        </div>
+      </div>
+      <p class="sub" style="text-align:center">Scan deze code om je gegevens op te slaan.</p>
     </section>
 
     <section class="card">
@@ -182,6 +193,35 @@
     } else {
       fallbackCopy(text);
     }
+  });
+
+  function buildVCard() {
+    const c = card;
+    const lines = [];
+    lines.push('BEGIN:VCARD');
+    lines.push('VERSION:3.0');
+    if (c.naam) lines.push('FN:' + c.naam);
+    if (c.bedrijf) lines.push('ORG:' + c.bedrijf);
+    if (c.functie) lines.push('TITLE:' + c.functie);
+    if (c.tagline) lines.push('NOTE:' + c.tagline);
+    if (c.telefoon) lines.push('TEL;TYPE=CELL:' + c.telefoon);
+    if (c.email) lines.push('EMAIL:' + c.email);
+    if (c.website) lines.push('URL:' + (c.website.indexOf('://') === -1 ? 'https://' : '') + c.website);
+    if (c.adres) lines.push('ADR;TYPE=WORK:;;' + c.adres + ';;;;');
+    lines.push('END:VCARD');
+    return lines.join('\n');
+  }
+
+  document.getElementById('btnQR').addEventListener('click', function () {
+    if (!card.naam && !card.bedrijf && !card.telefoon && !card.email) {
+      VH.toast('Vul eerst je gegevens in', 'error');
+      return;
+    }
+    const vcard = buildVCard();
+    const url = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=' + encodeURIComponent(vcard);
+    document.getElementById('qrImg').src = url;
+    document.getElementById('qrCard').style.display = '';
+    document.getElementById('qrCard').scrollIntoView({ behavior: 'smooth' });
   });
 
   loadForm();

@@ -90,8 +90,10 @@
     <div class="modal">
       <div class="modal-head">
         <h3>Offerte</h3>
-        <div style="display:flex;gap:8px">
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ Afdrukken</button>
+          <button class="btn btn-gold btn-sm" id="modalWhatsapp">📱 Verstuur via WhatsApp</button>
+          <button class="btn btn-gold btn-sm" id="modalEmail">✉️ Verstuur via E-mail</button>
           <button class="modal-close" id="modalClose">✕</button>
         </div>
       </div>
@@ -106,6 +108,7 @@
   const KEY = 'vh_quotes';
   const BTW = 0.21;
   let quotes = VH.get(KEY, []);
+  let currentQuote = null;
   VH.onData(KEY, function (data) { quotes = data; renderQuotes(); });
 
   function addDays(days) {
@@ -238,10 +241,28 @@
   function openQuote(id) {
     const q = quotes.find(function (x) { return x.id === id; });
     if (!q) return;
+    currentQuote = q;
     document.getElementById('modalDoc').innerHTML = docHTML(q);
     document.getElementById('modal').classList.add('open');
   }
   function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+  function sendText() {
+    if (!currentQuote) return '';
+    const naam = currentQuote.contact || currentQuote.bedrijf || 'klant';
+    return 'Beste ' + naam + ',\n\nBijgevoegd vindt u offerte ' + currentQuote.nummer +
+      ' met een totaalbedrag van ' + VH.fmtEUR(currentQuote.totaal) +
+      '.\n\nMet vriendelijke groet,\nVerde Horizonte';
+  }
+  document.getElementById('modalWhatsapp').addEventListener('click', function () {
+    if (currentQuote) window.open('https://wa.me/?text=' + encodeURIComponent(sendText()), '_blank');
+  });
+  document.getElementById('modalEmail').addEventListener('click', function () {
+    if (!currentQuote) return;
+    const subject = 'Offerte ' + currentQuote.nummer;
+    const to = currentQuote.email ? currentQuote.email : '';
+    window.location.href = 'mailto:' + to + '?subject=' + encodeURIComponent(subject) + '&body=' + encodeURIComponent(sendText());
+  });
 
   document.getElementById('btnAddItem').addEventListener('click', function () { addItemRow(); });
   document.getElementById('itemsBody').addEventListener('input', recalc);
