@@ -10,7 +10,7 @@ window.VH = (function () {
       return v === null ? fallback : JSON.parse(v);
     } catch (e) { return fallback; }
   }
-  function set(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
+  function store(key, value) { localStorage.setItem(key, JSON.stringify(value)); }
   function remove(key) { localStorage.removeItem(key); }
 
   const ESC = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' };
@@ -72,11 +72,11 @@ window.VH = (function () {
 
     if (error) {
       console.error('Load error:', error);
-      const cached = get('cache_' + key, null);
+      const cached = get(key, null);
       if (cached) { if (onData) onData(cached); } else { toast('Laden mislukt', 'error'); }
       return;
     }
-    set('cache_' + key, data);
+    store(key, data);
     if (onData) onData(data);
   }
 
@@ -90,11 +90,11 @@ window.VH = (function () {
     try {
       const { error } = await supabaseClient.from(table).upsert(payload, { onConflict: 'id' });
       if (error) throw error;
-      set('cache_' + key, value);
+      store(key, value);
       return true;
     } catch (err) {
       console.error('Save error:', err);
-      set('cache_' + key, value);
+      store(key, value);
       queuePush({ type: 'upsert', key, table, payload, user_id: user.id });
       toast('Offline — opgeslagen op dit apparaat', 'info');
       return true;
@@ -108,8 +108,8 @@ window.VH = (function () {
     try {
       const { error } = await supabaseClient.from(table).delete().eq('id', id).eq('user_id', user.id);
       if (error) throw error;
-      const cached = get('cache_' + key, []);
-      set('cache_' + key, cached.filter(item => item.id !== id));
+      const cached = get(key, []);
+      store(key, cached.filter(item => item.id !== id));
       return true;
     } catch (err) {
       console.error('Delete error:', err);
@@ -153,9 +153,13 @@ window.VH = (function () {
     if (count > 0) {
       bar.innerHTML = `<span>⚠ ${count} wijziging(en) wachten op sync</span><button id="vh-sync-btn" class="vh-sync-btn">Sync nu</button>`;
       bar.style.display = 'flex';
+      bar.classList.add('show');
       const btn = document.getElementById('vh-sync-btn');
       if (btn) btn.onclick = processSyncQueue;
-    } else { bar.style.display = 'none'; }
+    } else {
+      bar.classList.remove('show');
+      bar.style.display = 'none';
+    }
   }
 
   function logout() { supabaseClient.auth.signOut().then(() => { window.location.href = 'login.html'; }); }
@@ -163,5 +167,5 @@ window.VH = (function () {
   requireAuth();
   updateOfflineBar();
 
-  return { get, set, remove, removeRow, esc, fmtEUR, fmtNum, today, uid, fmtDuration, toast, logout, processSyncQueue };
+  return { get, set, remove, removeRow, onData: load, esc, fmtEUR, fmtNum, today, uid, fmtDuration, toast, logout, processSyncQueue };
 })();
