@@ -1,5 +1,5 @@
 /* Verde Horizonte Admin — service worker (PWA offline) */
-const CACHE = 'vh-admin-v4';
+const CACHE = 'vh-admin-v5';
 
 // Alle statische bestanden die offline beschikbaar moeten zijn.
 const ASSETS = [
