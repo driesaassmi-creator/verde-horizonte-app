@@ -1,0 +1,8 @@
+[{
+      "relation": ["delegate_permission/common.handle_all_urls"],
+      "target": {
+        "namespace": "android_app",
+        "package_name": "app.vercel.verde_horizonte_app.twa",
+        "sha256_cert_fingerprints": ["BA:38:C4:74:A7:1A:23:84:27:29:98:14:79:0F:E9:04:81:48:21:BF:CE:74:A9:8A:37:0F:BD:A6:28:E6:F2:DD"]
+      }
+    }]
