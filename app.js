@@ -21,22 +21,69 @@ window.VH = (function () {
     return TABLES[key] || key;
   }
 
+  // Haal het id van de ingelogde gebruiker op (null als niet ingelogd).
+  async function currentUserId() {
+    try {
+      const { data } = await supabaseClient.auth.getUser();
+      return data && data.user ? data.user.id : null;
+    } catch (err) {
+      console.error('VH.currentUserId', err);
+      return null;
+    }
+  }
+
+  // ---- Laad-indicator (spinner bovenaan) ----
+  let loadCount = 0;
+  function showLoading() {
+    loadCount++;
+    let el = document.getElementById('vh-loading');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'vh-loading';
+      el.className = 'vh-loading';
+      el.innerHTML = '<div class="vh-spinner"></div>';
+      document.body.appendChild(el);
+    }
+    el.classList.add('show');
+  }
+  function hideLoading() {
+    loadCount = Math.max(0, loadCount - 1);
+    if (loadCount === 0) {
+      const el = document.getElementById('vh-loading');
+      if (el) el.classList.remove('show');
+    }
+  }
+
   function load(key) {
     if (loading[key]) return;
     loading[key] = true;
+    showLoading();
     const table = tableFor(key);
-    supabaseClient.from(table).select('*').then(function (res) {
-      loading[key] = false;
-      if (res.error) { console.error('VH.load', key, res.error); return; }
-      let data;
-      if (SINGLE[key]) {
-        data = (res.data && res.data[0]) ? res.data[0] : {};
-      } else {
-        data = res.data || [];
-      }
-      cache[key] = data;
-      document.dispatchEvent(new CustomEvent('vh:data:' + key, { detail: data }));
-    });
+    currentUserId()
+      .then(function (user_id) {
+        // Laad alleen de rijen van de ingelogde gebruiker.
+        let query = supabaseClient.from(table).select('*');
+        if (user_id) query = query.eq('user_id', user_id);
+        return query;
+      })
+      .then(function (res) {
+        loading[key] = false;
+        hideLoading();
+        if (res.error) { console.error('VH.load', key, res.error); toast('Laden mislukt', 'error'); return; }
+        let data;
+        if (SINGLE[key]) {
+          data = (res.data && res.data[0]) ? res.data[0] : {};
+        } else {
+          data = res.data || [];
+        }
+        cache[key] = data;
+        document.dispatchEvent(new CustomEvent('vh:data:' + key, { detail: data }));
+      })
+      .catch(function (err) {
+        loading[key] = false;
+        hideLoading();
+        console.error('VH.load', key, err);
+      });
   }
 
   function get(key, fallback) {
@@ -48,44 +95,57 @@ window.VH = (function () {
   async function set(key, value) {
     cache[key] = value;
 
-    // Koppel data automatisch aan de ingelogde gebruiker.
-    let user_id = null;
-    try {
-      const { data } = await supabaseClient.auth.getUser();
-      user_id = data && data.user ? data.user.id : null;
-    } catch (err) {
-      console.error('VH.set getUser', err);
-    }
-
+    const user_id = await currentUserId();
     const table = tableFor(key);
+
     if (SINGLE[key]) {
       const payload = Object.assign({ id: 'card' }, value);
       if (user_id) payload.user_id = user_id;
       const { error } = await supabaseClient.from(table).upsert(payload);
-      if (error) console.error('VH.set', key, error);
-      return;
+      if (error) { console.error('VH.set', key, error); toast('Opslaan mislukt', 'error'); return false; }
+      return true;
     }
-    // Arrays: vervang de volledige inhoud (eerst verwijderen, daarna invoegen).
-    const { error: delError } = await supabaseClient.from(table).delete().neq('id', '');
-    if (delError) { console.error('VH.set', key, delError); return; }
-    if (value && value.length) {
-      const rows = Array.isArray(value)
-        ? value.map(function (row) {
-            const copy = Object.assign({}, row);
-            if (user_id) copy.user_id = user_id;
-            return copy;
-          })
-        : value;
-      const { error: insError } = await supabaseClient.from(table).insert(rows);
-      if (insError) console.error('VH.set', key, insError);
+
+    // Arrays: upsert de rijen van de ingelogde gebruiker en verwijder alleen
+    // diens rijen die niet meer in de lijst staan (nooit die van anderen).
+    const rows = Array.isArray(value) ? value : [];
+    const payload = rows.map(function (row) {
+      const copy = Object.assign({}, row);
+      if (user_id) copy.user_id = user_id;
+      return copy;
+    });
+
+    if (payload.length) {
+      const { error: upsertError } = await supabaseClient.from(table).upsert(payload);
+      if (upsertError) { console.error('VH.set', key, upsertError); toast('Opslaan mislukt', 'error'); return false; }
     }
+
+    // Verwijder alleen de rijen van deze gebruiker die niet meer bestaan.
+    if (user_id) {
+      let delQuery = supabaseClient.from(table).delete().eq('user_id', user_id);
+      const ids = payload.map(function (row) { return row.id; }).filter(Boolean);
+      if (ids.length) {
+        const list = ids.map(function (id) {
+          return '"' + String(id).replace(/"/g, '""') + '"';
+        }).join(',');
+        delQuery = delQuery.not('id', 'in', '(' + list + ')');
+      }
+      const { error: delError } = await delQuery;
+      if (delError) { console.error('VH.set', key, delError); toast('Opslaan mislukt', 'error'); return false; }
+    }
+
+    return true;
   }
 
   async function remove(key) {
     delete cache[key];
     const table = tableFor(key);
-    const { error } = await supabaseClient.from(table).delete().neq('id', '');
-    if (error) console.error('VH.remove', key, error);
+    const user_id = await currentUserId();
+    let query = supabaseClient.from(table).delete();
+    if (user_id) query = query.eq('user_id', user_id);
+    const { error } = await query;
+    if (error) { console.error('VH.remove', key, error); toast('Verwijderen mislukt', 'error'); return false; }
+    return true;
   }
 
   // Abonneer op asynchroon geladen data voor een sleutel.
