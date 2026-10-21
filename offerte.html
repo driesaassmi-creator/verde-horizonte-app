@@ -280,10 +280,12 @@
     if (v) { openQuote(v.dataset.view); return; }
     if (d) {
       if (!confirm('Deze offerte verwijderen?')) return;
-      quotes = quotes.filter(function (x) { return x.id !== d.dataset.del; });
-      await VH.set(KEY, quotes);
-      renderQuotes();
-      VH.toast('Offerte verwijderd', 'success');
+      const ok = await VH.removeRow(KEY, d.dataset.del);
+      if (ok) {
+        quotes = quotes.filter(function (x) { return x.id !== d.dataset.del; });
+        renderQuotes();
+        VH.toast('Offerte verwijderd', 'success');
+      }
     }
   });
   document.getElementById('modalClose').addEventListener('click', closeModal);

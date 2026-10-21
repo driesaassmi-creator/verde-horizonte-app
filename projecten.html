@@ -188,10 +188,12 @@
 
     if (del) {
       if (!confirm('Dit project verwijderen?')) return;
-      projecten = projecten.filter(function (p) { return p.id !== del.dataset.del; });
-      await VH.set(KEY, projecten);
-      render();
-      VH.toast('Project verwijderd', 'success');
+      const ok = await VH.removeRow(KEY, del.dataset.del);
+      if (ok) {
+        projecten = projecten.filter(function (p) { return p.id !== del.dataset.del; });
+        render();
+        VH.toast('Project verwijderd', 'success');
+      }
       return;
     }
 

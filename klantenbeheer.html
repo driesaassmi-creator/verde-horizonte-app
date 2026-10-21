@@ -168,10 +168,12 @@
 
     if (del) {
       if (!confirm('Deze klant verwijderen?')) return;
-      klanten = klanten.filter(function (k) { return k.id !== del.dataset.del; });
-      await VH.set(KEY, klanten);
-      render();
-      VH.toast('Klant verwijderd', 'success');
+      const ok = await VH.removeRow(KEY, del.dataset.del);
+      if (ok) {
+        klanten = klanten.filter(function (k) { return k.id !== del.dataset.del; });
+        render();
+        VH.toast('Klant verwijderd', 'success');
+      }
       return;
     }
 

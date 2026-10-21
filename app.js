@@ -134,6 +134,18 @@ window.VH = (function () {
     return true;
   }
 
+  // Verwijder één rij (veilig: filtert op id én op de ingelogde gebruiker).
+  // key = storage-sleutel (bepaalt de tabel via TABLES).
+  async function removeRow(key, id) {
+    const table = tableFor(key);
+    const user_id = await currentUserId();
+    let query = supabaseClient.from(table).delete().eq('id', id);
+    if (user_id) query = query.eq('user_id', user_id);
+    const { error } = await query;
+    if (error) { console.error('VH.removeRow', key, id, error); toast('Verwijderen mislukt', 'error'); return false; }
+    return true;
+  }
+
   // Abonneer op asynchroon geladen data voor een sleutel.
   function onData(key, cb) {
     document.addEventListener('vh:data:' + key, function (e) { cb(e.detail); });
@@ -232,6 +244,7 @@ window.VH = (function () {
     get: get,
     set: set,
     remove: remove,
+    removeRow: removeRow,
     onData: onData,
     esc: esc,
     fmtEUR: fmtEUR,

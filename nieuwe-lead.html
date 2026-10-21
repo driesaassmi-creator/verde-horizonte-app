@@ -193,10 +193,12 @@
     const btn = e.target.closest('[data-del]');
     if (!btn) return;
     if (!confirm('Deze lead verwijderen?')) return;
-    leads = leads.filter(function (l) { return l.id !== btn.dataset.del; });
-    await VH.set(KEY, leads);
-    render();
-    VH.toast('Lead verwijderd', 'success');
+    const ok = await VH.removeRow(KEY, btn.dataset.del);
+    if (ok) {
+      leads = leads.filter(function (l) { return l.id !== btn.dataset.del; });
+      render();
+      VH.toast('Lead verwijderd', 'success');
+    }
   });
 
   render();

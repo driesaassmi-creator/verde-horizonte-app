@@ -165,10 +165,12 @@
     const btn = e.target.closest('[data-del]');
     if (!btn) return;
     if (!confirm('Deze registratie verwijderen?')) return;
-    entries = entries.filter(function (x) { return x.id !== btn.dataset.del; });
-    await VH.set(KEY, entries);
-    renderEntries();
-    VH.toast('Registratie verwijderd', 'success');
+    const ok = await VH.removeRow(KEY, btn.dataset.del);
+    if (ok) {
+      entries = entries.filter(function (x) { return x.id !== btn.dataset.del; });
+      renderEntries();
+      VH.toast('Registratie verwijderd', 'success');
+    }
   });
 
   renderProjects();
