@@ -1,0 +1,173 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Timer · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" title="Terug naar dashboard">←</a>
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Verde Horizonte</span>
+      <h1>Timer</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <div>
+        <h2>Urenregistratie</h2>
+        <p class="sub">Start een timer en sla gewerkte tijd op.</p>
+      </div>
+    </div>
+
+    <section class="card">
+      <h3><span class="bar"></span> Timer</h3>
+      <div class="grid-2">
+        <div class="field">
+          <label for="tLabel">Omschrijving / taak</label>
+          <input id="tLabel" type="text" placeholder="Waar werk je aan?" />
+        </div>
+        <div class="field">
+          <label for="tProject">Project (optioneel)</label>
+          <select id="tProject">
+            <option value="">— Geen project —</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="timer-display" id="disp">00:00:00</div>
+
+      <div class="timer-controls">
+        <button class="btn" id="btnStart">▶ Start</button>
+        <button class="btn btn-ghost" id="btnPause" disabled>⏸ Pauze</button>
+        <button class="btn btn-gold" id="btnStop" disabled>⏹ Stop &amp; opslaan</button>
+        <button class="btn btn-danger" id="btnReset" disabled>↺ Reset</button>
+      </div>
+    </section>
+
+    <section class="card">
+      <h3><span class="bar"></span> Tijdsregistraties</h3>
+      <div class="result-panel" id="summary"></div>
+      <div class="list" id="entryList" style="margin-top:14px"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+  const KEY = 'vh_time_entries';
+  let entries = VH.get(KEY, []);
+  let running = false;
+  let elapsed = 0;
+  let tick = null;
+  const disp = document.getElementById('disp');
+
+  function renderProjects() {
+    const projects = VH.get('vh_projects', []);
+    const sel = document.getElementById('tProject');
+    projects.forEach(function (p) {
+      const o = document.createElement('option');
+      o.value = p.naam;
+      o.textContent = p.naam;
+      sel.appendChild(o);
+    });
+  }
+
+  function renderTime() { disp.textContent = VH.fmtDuration(elapsed); }
+
+  function updateBtns() {
+    document.getElementById('btnStart').disabled = running;
+    document.getElementById('btnPause').disabled = !running;
+    document.getElementById('btnStop').disabled = elapsed < 1;
+    document.getElementById('btnReset').disabled = running || elapsed === 0;
+  }
+
+  function start() {
+    if (running) return;
+    running = true;
+    const startTs = Date.now() - elapsed * 1000;
+    tick = setInterval(function () { elapsed = (Date.now() - startTs) / 1000; renderTime(); }, 250);
+    updateBtns();
+  }
+  function pause() {
+    if (!running) return;
+    running = false;
+    clearInterval(tick);
+    tick = null;
+    updateBtns();
+  }
+  function reset() {
+    if (running) { clearInterval(tick); tick = null; running = false; }
+    elapsed = 0;
+    renderTime();
+    updateBtns();
+  }
+  function stopAndSave() {
+    if (running) { clearInterval(tick); tick = null; running = false; }
+    if (elapsed < 1) { VH.toast('Geen tijd gemeten', 'error'); updateBtns(); return; }
+    const label = document.getElementById('tLabel').value.trim() || 'Zonder omschrijving';
+    const project = document.getElementById('tProject').value;
+    entries.unshift({ id: VH.uid('t_'), datum: VH.today(), label: label, project: project, seconds: Math.round(elapsed) });
+    VH.set(KEY, entries);
+    elapsed = 0;
+    renderTime();
+    renderEntries();
+    updateBtns();
+    VH.toast('Tijd opgeslagen', 'success');
+  }
+
+  function renderEntries() {
+    const list = document.getElementById('entryList');
+    if (!entries.length) {
+      list.innerHTML = '<div class="empty"><span class="icon">⏱️</span>Nog geen registraties.</div>';
+    } else {
+      list.innerHTML = entries.map(function (e) {
+        return '<div class="item">' +
+          '<div class="grow">' +
+            '<div class="title">' + VH.esc(e.label) + '</div>' +
+            '<div class="meta">' + VH.esc(e.datum) + (e.project ? ' · ' + VH.esc(e.project) : '') + '</div>' +
+          '</div>' +
+          '<div class="actions">' +
+            '<span class="badge badge-accent">' + VH.fmtDuration(e.seconds) + '</span>' +
+            '<button class="btn btn-danger btn-sm" data-del="' + e.id + '">✕</button>' +
+          '</div>' +
+        '</div>';
+      }).join('');
+    }
+
+    const today = VH.today();
+    let totalAll = 0, totalToday = 0;
+    entries.forEach(function (e) { totalAll += e.seconds; if (e.datum === today) totalToday += e.seconds; });
+    document.getElementById('summary').innerHTML =
+      '<div class="rp-row"><span>Vandaag</span><span>' + VH.fmtDuration(totalToday) + '</span></div>' +
+      '<div class="rp-row big"><span>Totaal</span><span>' + VH.fmtDuration(totalAll) + '</span></div>';
+  }
+
+  document.getElementById('btnStart').addEventListener('click', start);
+  document.getElementById('btnPause').addEventListener('click', pause);
+  document.getElementById('btnReset').addEventListener('click', reset);
+  document.getElementById('btnStop').addEventListener('click', stopAndSave);
+
+  document.getElementById('entryList').addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-del]');
+    if (!btn) return;
+    if (!confirm('Deze registratie verwijderen?')) return;
+    entries = entries.filter(function (x) { return x.id !== btn.dataset.del; });
+    VH.set(KEY, entries);
+    renderEntries();
+    VH.toast('Registratie verwijderd', 'success');
+  });
+
+  renderProjects();
+  renderTime();
+  renderEntries();
+  updateBtns();
+</script>
+
+</body>
+</html>

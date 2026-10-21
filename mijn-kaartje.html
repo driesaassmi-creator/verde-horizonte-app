@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Mijn Kaartje · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" title="Terug naar dashboard">←</a>
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Verde Horizonte</span>
+      <h1>Mijn Kaartje</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <div>
+        <h2>Digitaal visitekaartje</h2>
+        <p class="sub">Vul je gegevens in en zie live je kaartje.</p>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-ghost" id="btnPrint">🖨️ Afdrukken</button>
+        <button class="btn btn-ghost" id="btnCopy">📋 Kopieer</button>
+      </div>
+    </div>
+
+    <section class="card">
+      <h3><span class="bar"></span> Voorbeeld</h3>
+      <div class="vcard" id="preview"></div>
+    </section>
+
+    <section class="card">
+      <h3><span class="bar"></span> Gegevens</h3>
+      <form id="cardForm" autocomplete="off">
+        <div class="grid-2">
+          <div class="field">
+            <label for="cNaam">Naam</label>
+            <input id="cNaam" type="text" placeholder="Voor- en achternaam" />
+          </div>
+          <div class="field">
+            <label for="cFunctie">Functie</label>
+            <input id="cFunctie" type="text" placeholder="Functietitel" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="cBedrijf">Bedrijf</label>
+            <input id="cBedrijf" type="text" placeholder="Bedrijfsnaam" />
+          </div>
+          <div class="field">
+            <label for="cTagline">Tagline</label>
+            <input id="cTagline" type="text" placeholder="Korte slogan" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="cTelefoon">Telefoon</label>
+            <input id="cTelefoon" type="tel" placeholder="06 12345678" />
+          </div>
+          <div class="field">
+            <label for="cEmail">E-mail</label>
+            <input id="cEmail" type="email" placeholder="naam@bedrijf.nl" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="cWebsite">Website</label>
+            <input id="cWebsite" type="text" placeholder="www.bedrijf.nl" />
+          </div>
+          <div class="field">
+            <label for="cAdres">Adres</label>
+            <input id="cAdres" type="text" placeholder="Straat, plaats" />
+          </div>
+        </div>
+        <button type="submit" class="btn btn-gold">💾 Kaartje opslaan</button>
+      </form>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+  const KEY = 'vh_card';
+  let card = VH.get(KEY, {});
+  const fieldIds = ['cNaam', 'cFunctie', 'cBedrijf', 'cTagline', 'cTelefoon', 'cEmail', 'cWebsite', 'cAdres'];
+
+  function renderPreview() {
+    const naam = document.getElementById('cNaam').value.trim();
+    const functie = document.getElementById('cFunctie').value.trim();
+    const bedrijf = document.getElementById('cBedrijf').value.trim() || 'Verde Horizonte';
+    const tagline = document.getElementById('cTagline').value.trim();
+    const telefoon = document.getElementById('cTelefoon').value.trim();
+    const email = document.getElementById('cEmail').value.trim();
+    const website = document.getElementById('cWebsite').value.trim();
+    const adres = document.getElementById('cAdres').value.trim();
+
+    const rows = [];
+    if (telefoon) rows.push('<div class="v-row">📞 ' + VH.esc(telefoon) + '</div>');
+    if (email) rows.push('<div class="v-row">✉️ ' + VH.esc(email) + '</div>');
+    if (website) rows.push('<div class="v-row">🌐 ' + VH.esc(website) + '</div>');
+    if (adres) rows.push('<div class="v-row">📍 ' + VH.esc(adres) + '</div>');
+
+    document.getElementById('preview').innerHTML =
+      '<div class="v-brand">' + VH.esc(bedrijf) + '</div>' +
+      '<div>' +
+        '<div class="v-name">' + VH.esc(naam || 'Jouw naam') + '</div>' +
+        (functie ? '<div class="v-role">' + VH.esc(functie) + '</div>' : '') +
+        (tagline ? '<div class="v-row">' + VH.esc(tagline) + '</div>' : '') +
+      '</div>' +
+      '<div>' + rows.join('') + '</div>';
+  }
+
+  function loadForm() {
+    document.getElementById('cNaam').value = card.naam || '';
+    document.getElementById('cFunctie').value = card.functie || '';
+    document.getElementById('cBedrijf').value = card.bedrijf || '';
+    document.getElementById('cTagline').value = card.tagline || '';
+    document.getElementById('cTelefoon').value = card.telefoon || '';
+    document.getElementById('cEmail').value = card.email || '';
+    document.getElementById('cWebsite').value = card.website || '';
+    document.getElementById('cAdres').value = card.adres || '';
+    renderPreview();
+  }
+
+  document.getElementById('cardForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    card = {
+      naam: document.getElementById('cNaam').value.trim(),
+      functie: document.getElementById('cFunctie').value.trim(),
+      bedrijf: document.getElementById('cBedrijf').value.trim(),
+      tagline: document.getElementById('cTagline').value.trim(),
+      telefoon: document.getElementById('cTelefoon').value.trim(),
+      email: document.getElementById('cEmail').value.trim(),
+      website: document.getElementById('cWebsite').value.trim(),
+      adres: document.getElementById('cAdres').value.trim()
+    };
+    VH.set(KEY, card);
+    VH.toast('Kaartje opgeslagen', 'success');
+  });
+
+  fieldIds.forEach(function (id) {
+    document.getElementById(id).addEventListener('input', renderPreview);
+  });
+
+  document.getElementById('btnPrint').addEventListener('click', function () { window.print(); });
+
+  function fallbackCopy(text) {
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    ta.remove();
+    VH.toast('Gekopieerd naar klembord', 'success');
+  }
+
+  document.getElementById('btnCopy').addEventListener('click', function () {
+    const c = card;
+    const lines = [];
+    if (c.bedrijf) lines.push(c.bedrijf);
+    if (c.naam) lines.push(c.naam);
+    if (c.functie) lines.push(c.functie);
+    if (c.tagline) lines.push(c.tagline);
+    if (c.telefoon) lines.push('Telefoon: ' + c.telefoon);
+    if (c.email) lines.push('E-mail: ' + c.email);
+    if (c.website) lines.push('Website: ' + c.website);
+    if (c.adres) lines.push('Adres: ' + c.adres);
+    const text = lines.join('\n');
+    if (!text.trim()) { VH.toast('Vul eerst je gegevens in', 'error'); return; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(function () {
+        VH.toast('Gekopieerd naar klembord', 'success');
+      }).catch(function () { fallbackCopy(text); });
+    } else {
+      fallbackCopy(text);
+    }
+  });
+
+  loadForm();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Projecten · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" title="Terug naar dashboard">←</a>
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Verde Horizonte</span>
+      <h1>Projecten</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <div>
+        <h2>Projectbeheer</h2>
+        <p class="sub">Houd je projecten en deadlines bij.</p>
+      </div>
+    </div>
+
+    <section class="card" id="formCard">
+      <h3><span class="bar"></span> <span id="formTitle">Nieuw project</span></h3>
+      <form id="projectForm" autocomplete="off">
+        <input type="hidden" id="fId" />
+        <div class="grid-2">
+          <div class="field">
+            <label for="fNaam">Projectnaam <span class="req">*</span></label>
+            <input id="fNaam" type="text" placeholder="Naam van het project" />
+          </div>
+          <div class="field">
+            <label for="fKlant">Klant</label>
+            <input id="fKlant" type="text" placeholder="Klant / opdrachtgever" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="fStatus">Status</label>
+            <select id="fStatus">
+              <option>Nieuw</option>
+              <option>Lopend</option>
+              <option>Afgerond</option>
+              <option>On hold</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fDeadline">Deadline</label>
+            <input id="fDeadline" type="date" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="fBeschrijving">Beschrijving</label>
+          <textarea id="fBeschrijving" placeholder="Wat houdt dit project in?"></textarea>
+        </div>
+        <button type="submit" class="btn btn-gold" id="btnSubmit">💾 Project opslaan</button>
+        <button type="button" class="btn btn-ghost" id="btnCancel" style="display:none">Annuleren</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3><span class="bar"></span> Overzicht (<span id="count">0</span>)</h3>
+      <div class="field">
+        <label for="filter">Filter op status</label>
+        <select id="filter">
+          <option>Alle</option>
+          <option>Nieuw</option>
+          <option>Lopend</option>
+          <option>Afgerond</option>
+          <option>On hold</option>
+        </select>
+      </div>
+      <div class="list" id="projectList"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+  const KEY = 'vh_projects';
+  const STATUSES = ['Nieuw', 'Lopend', 'Afgerond', 'On hold'];
+  let projecten = VH.get(KEY, []);
+
+  function badgeFor(s) {
+    switch (s) {
+      case 'Afgerond': return 'badge-success';
+      case 'Lopend': return 'badge-warning';
+      case 'On hold': return 'badge-gold';
+      default: return 'badge-accent';
+    }
+  }
+
+  function statusOptions(sel) {
+    return STATUSES.map(function (s) {
+      return '<option' + (s === sel ? ' selected' : '') + '>' + s + '</option>';
+    }).join('');
+  }
+
+  function render() {
+    const filter = document.getElementById('filter').value;
+    const rows = filter === 'Alle' ? projecten : projecten.filter(function (p) { return p.status === filter; });
+    document.getElementById('count').textContent = rows.length;
+    const list = document.getElementById('projectList');
+
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty"><span class="icon">📁</span>Geen projecten gevonden.</div>';
+      return;
+    }
+
+    list.innerHTML = rows.map(function (p) {
+      return '<div class="item">' +
+        '<div class="grow">' +
+          '<div class="title">' + VH.esc(p.naam) + '</div>' +
+          '<div class="meta">' + VH.esc(p.klant || '—') + (p.deadline ? ' · deadline ' + VH.esc(p.deadline) : '') + '</div>' +
+          (p.beschrijving ? '<div class="meta"><span class="note">' + VH.esc(p.beschrijving) + '</span></div>' : '') +
+        '</div>' +
+        '<div class="actions">' +
+          '<span class="badge ' + badgeFor(p.status) + '">' + VH.esc(p.status) + '</span>' +
+          '<select class="proj-status" data-id="' + p.id + '" title="Status wijzigen">' + statusOptions(p.status) + '</select>' +
+          '<button class="btn btn-ghost btn-sm" data-edit="' + p.id + '">✏️</button>' +
+          '<button class="btn btn-danger btn-sm" data-del="' + p.id + '">✕</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function resetForm() {
+    document.getElementById('projectForm').reset();
+    document.getElementById('fId').value = '';
+    document.getElementById('formTitle').textContent = 'Nieuw project';
+    document.getElementById('btnSubmit').textContent = '💾 Project opslaan';
+    document.getElementById('btnCancel').style.display = 'none';
+  }
+
+  document.getElementById('projectForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const naam = document.getElementById('fNaam').value.trim();
+    if (!naam) { VH.toast('Projectnaam is verplicht', 'error'); return; }
+
+    const data = {
+      naam: naam,
+      klant: document.getElementById('fKlant').value.trim(),
+      status: document.getElementById('fStatus').value,
+      deadline: document.getElementById('fDeadline').value,
+      beschrijving: document.getElementById('fBeschrijving').value.trim()
+    };
+
+    const id = document.getElementById('fId').value;
+    if (id) {
+      const p = projecten.find(function (x) { return x.id === id; });
+      if (p) Object.assign(p, data);
+      VH.toast('Project bijgewerkt', 'success');
+    } else {
+      data.id = VH.uid('p_');
+      projecten.unshift(data);
+      VH.toast('Project toegevoegd', 'success');
+    }
+
+    VH.set(KEY, projecten);
+    resetForm();
+    render();
+  });
+
+  document.getElementById('btnCancel').addEventListener('click', resetForm);
+  document.getElementById('filter').addEventListener('change', render);
+
+  document.getElementById('projectList').addEventListener('change', function (e) {
+    if (e.target.classList.contains('proj-status')) {
+      const p = projecten.find(function (x) { return x.id === e.target.dataset.id; });
+      if (p) { p.status = e.target.value; VH.set(KEY, projecten); render(); VH.toast('Status bijgewerkt', 'success'); }
+    }
+  });
+
+  document.getElementById('projectList').addEventListener('click', function (e) {
+    const del = e.target.closest('[data-del]');
+    const edit = e.target.closest('[data-edit]');
+
+    if (del) {
+      if (!confirm('Dit project verwijderen?')) return;
+      projecten = projecten.filter(function (p) { return p.id !== del.dataset.del; });
+      VH.set(KEY, projecten);
+      render();
+      VH.toast('Project verwijderd', 'success');
+      return;
+    }
+
+    if (edit) {
+      const p = projecten.find(function (x) { return x.id === edit.dataset.edit; });
+      if (!p) return;
+      document.getElementById('fId').value = p.id;
+      document.getElementById('fNaam').value = p.naam;
+      document.getElementById('fKlant').value = p.klant || '';
+      document.getElementById('fStatus').value = p.status;
+      document.getElementById('fDeadline').value = p.deadline || '';
+      document.getElementById('fBeschrijving').value = p.beschrijving || '';
+      document.getElementById('formTitle').textContent = 'Bewerk project';
+      document.getElementById('btnSubmit').textContent = '💾 Wijzigingen opslaan';
+      document.getElementById('btnCancel').style.display = 'inline-flex';
+      document.getElementById('formCard').scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+
+  render();
+</script>
+
+</body>
+</html>

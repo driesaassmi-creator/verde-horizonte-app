@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Verde Horizonte · Admin</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="brand-hero">
+    <div class="brand-logo">🌅</div>
+    <h1>Verde Horizonte</h1>
+    <p class="tagline">Admin App · overzicht &amp; tools</p>
+  </header>
+
+  <main class="container">
+    <section class="stats" id="stats" aria-label="Statistieken"></section>
+
+    <section class="tiles" id="tiles" aria-label="Tools"></section>
+
+    <footer class="foot-note">
+      Alle gegevens worden lokaal in je browser opgeslagen (LocalStorage).
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+    const TILES = [
+      { icon: '➕',  label: 'Nieuwe Lead', desc: 'Registreer en volg nieuwe leads',       href: 'nieuwe-lead.html',  gold: false },
+      { icon: '📄',  label: 'Offerte',     desc: 'Maak en verstuur offertes',            href: 'offerte.html',      gold: true  },
+      { icon: '🧾',  label: 'Factuur',     desc: 'Stel facturen op en volg betalingen',  href: 'factuur.html',      gold: true  },
+      { icon: '👥',  label: 'Klanten',     desc: 'Beheer je klantenbestand',             href: 'klantenbeheer.html', gold: false },
+      { icon: '📁',  label: 'Projecten',   desc: 'Overzicht van lopende projecten',      href: 'projecten.html',    gold: false },
+      { icon: '⏱️',  label: 'Timer',       desc: 'Registreer gewerkte uren',             href: 'timer.html',        gold: false },
+      { icon: '🧮',  label: 'Calculator',  desc: 'Rekenmachine, marge &amp; BTW',        href: 'calculator.html',   gold: false },
+      { icon: '💳',  label: 'Mijn Kaartje', desc: 'Jouw digitale visitekaartje',         href: 'mijn-kaartje.html', gold: true  }
+    ];
+
+    document.getElementById('tiles').innerHTML = TILES.map(function (t) {
+      return '<a class="tile' + (t.gold ? ' gold' : '') + '" href="' + t.href + '">' +
+        '<span class="tile-arrow">→</span>' +
+        '<span class="tile-icon">' + t.icon + '</span>' +
+        '<h3>' + t.label + '</h3>' +
+        '<p>' + t.desc + '</p>' +
+        '</a>';
+    }).join('');
+
+    const STATS = [
+      { key: 'vh_leads',     label: 'Leads',     cls: 'accent' },
+      { key: 'vh_customers', label: 'Klanten',   cls: '' },
+      { key: 'vh_projects',  label: 'Projecten', cls: '' },
+      { key: 'vh_quotes',    label: 'Offertes',  cls: 'gold' },
+      { key: 'vh_invoices',  label: 'Facturen',  cls: 'gold' }
+    ];
+
+    document.getElementById('stats').innerHTML = STATS.map(function (s) {
+      const n = (VH.get(s.key, []) || []).length;
+      return '<div class="stat"><div class="num ' + s.cls + '">' + n + '</div>' +
+        '<div class="label">' + s.label + '</div></div>';
+    }).join('');
+  </script>
+</body>
+</html>

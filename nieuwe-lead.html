@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Nieuwe Lead · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" title="Terug naar dashboard">←</a>
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Verde Horizonte</span>
+      <h1>Nieuwe Lead</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <div>
+        <h2>Lead registreren</h2>
+        <p class="sub">Leg een nieuwe potentiële klant vast en volg de status op.</p>
+      </div>
+    </div>
+
+    <section class="card">
+      <h3><span class="bar"></span> Nieuw leadformulier</h3>
+      <form id="leadForm" autocomplete="off">
+        <div class="grid-2">
+          <div class="field">
+            <label for="fNaam">Naam <span class="req">*</span></label>
+            <input id="fNaam" type="text" placeholder="Voor- en achternaam" />
+          </div>
+          <div class="field">
+            <label for="fBedrijf">Bedrijf</label>
+            <input id="fBedrijf" type="text" placeholder="Bedrijfsnaam" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="fEmail">E-mail</label>
+            <input id="fEmail" type="email" placeholder="naam@bedrijf.nl" />
+          </div>
+          <div class="field">
+            <label for="fTelefoon">Telefoon</label>
+            <input id="fTelefoon" type="tel" placeholder="06 12345678" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="fBron">Bron</label>
+            <select id="fBron">
+              <option>Website</option>
+              <option>Telefoon</option>
+              <option>E-mail</option>
+              <option>Social media</option>
+              <option>Verwijzing</option>
+              <option>Beurs</option>
+              <option>Anders</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="fStatus">Status</label>
+            <select id="fStatus">
+              <option>Nieuw</option>
+              <option>Contact opgenomen</option>
+              <option>In gesprek</option>
+              <option>Offerte verstuurd</option>
+              <option>Gewonnen</option>
+              <option>Verloren</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="fNotities">Notities</label>
+          <textarea id="fNotities" placeholder="Aantekeningen over dit gesprek..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-gold">➕ Lead opslaan</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3><span class="bar"></span> Leads overzicht</h3>
+      <div class="field">
+        <label for="filter">Filter op status</label>
+        <select id="filter">
+          <option>Alle</option>
+          <option>Nieuw</option>
+          <option>Contact opgenomen</option>
+          <option>In gesprek</option>
+          <option>Offerte verstuurd</option>
+          <option>Gewonnen</option>
+          <option>Verloren</option>
+        </select>
+      </div>
+      <div class="list" id="leadList"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+  const KEY = 'vh_leads';
+  const STATUSES = ['Nieuw', 'Contact opgenomen', 'In gesprek', 'Offerte verstuurd', 'Gewonnen', 'Verloren'];
+
+  let leads = VH.get(KEY, []);
+
+  function badgeFor(status) {
+    switch (status) {
+      case 'Gewonnen': return 'badge-success';
+      case 'Verloren': return 'badge-danger';
+      case 'Nieuw': return 'badge-accent';
+      case 'Offerte verstuurd': return 'badge-gold';
+      default: return 'badge-warning';
+    }
+  }
+
+  function statusOptions(sel) {
+    return STATUSES.map(function (s) {
+      return '<option' + (s === sel ? ' selected' : '') + '>' + s + '</option>';
+    }).join('');
+  }
+
+  function render() {
+    const filter = document.getElementById('filter').value;
+    const rows = filter === 'Alle' ? leads : leads.filter(function (l) { return l.status === filter; });
+    const list = document.getElementById('leadList');
+
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty"><span class="icon">🌱</span>Nog geen leads gevonden.</div>';
+      return;
+    }
+
+    list.innerHTML = rows.map(function (l) {
+      return '<div class="item">' +
+        '<div class="grow">' +
+          '<div class="title">' + VH.esc(l.naam) + '</div>' +
+          '<div class="meta">' + VH.esc(l.bedrijf || '—') + ' · ' + VH.esc(l.email || 'geen e-mail') +
+            (l.telefoon ? ' · ' + VH.esc(l.telefoon) : '') + '</div>' +
+          '<div class="meta">Bron: <span class="badge badge-neutral">' + VH.esc(l.bron) + '</span> ' +
+            '<span class="badge ' + badgeFor(l.status) + '">' + VH.esc(l.status) + '</span> · ' + VH.esc(l.datum) + '</div>' +
+          (l.notities ? '<div class="meta"><span class="note">' + VH.esc(l.notities) + '</span></div>' : '') +
+        '</div>' +
+        '<div class="actions">' +
+          '<select class="lead-status" data-id="' + l.id + '" title="Status wijzigen">' + statusOptions(l.status) + '</select>' +
+          '<button class="btn btn-danger btn-sm" data-del="' + l.id + '" title="Verwijderen">✕</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  document.getElementById('leadForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const naam = document.getElementById('fNaam').value.trim();
+    if (!naam) { VH.toast('Naam is verplicht', 'error'); return; }
+
+    leads.unshift({
+      id: VH.uid('lead_'),
+      naam: naam,
+      bedrijf: document.getElementById('fBedrijf').value.trim(),
+      email: document.getElementById('fEmail').value.trim(),
+      telefoon: document.getElementById('fTelefoon').value.trim(),
+      bron: document.getElementById('fBron').value,
+      status: document.getElementById('fStatus').value,
+      notities: document.getElementById('fNotities').value.trim(),
+      datum: VH.today()
+    });
+    VH.set(KEY, leads);
+    this.reset();
+    document.getElementById('fStatus').value = 'Nieuw';
+    render();
+    VH.toast('Lead opgeslagen', 'success');
+  });
+
+  document.getElementById('filter').addEventListener('change', render);
+
+  document.getElementById('leadList').addEventListener('change', function (e) {
+    if (e.target.classList.contains('lead-status')) {
+      const lead = leads.find(function (l) { return l.id === e.target.dataset.id; });
+      if (lead) { lead.status = e.target.value; VH.set(KEY, leads); render(); VH.toast('Status bijgewerkt', 'success'); }
+    }
+  });
+
+  document.getElementById('leadList').addEventListener('click', function (e) {
+    const btn = e.target.closest('[data-del]');
+    if (!btn) return;
+    if (!confirm('Deze lead verwijderen?')) return;
+    leads = leads.filter(function (l) { return l.id !== btn.dataset.del; });
+    VH.set(KEY, leads);
+    render();
+    VH.toast('Lead verwijderd', 'success');
+  });
+
+  render();
+</script>
+
+</body>
+</html>

@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Calculator · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" title="Terug naar dashboard">←</a>
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Verde Horizonte</span>
+      <h1>Calculator</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <div>
+        <h2>Calculator</h2>
+        <p class="sub">Rekenmachine, marge- en BTW-berekeningen.</p>
+      </div>
+    </div>
+
+    <div class="tabs">
+      <button class="tab active" data-tab="std">Standaard</button>
+      <button class="tab" data-tab="marge">Marge</button>
+      <button class="tab" data-tab="btw">BTW</button>
+    </div>
+
+    <section class="card">
+      <div class="tab-pane active" id="pane-std">
+        <div class="calc-display" id="calcDisplay">0</div>
+        <div class="calc-grid" id="calcGrid">
+          <button class="calc-key gold" data-act="clear">C</button>
+          <button class="calc-key gold" data-act="neg">±</button>
+          <button class="calc-key gold" data-act="pct">%</button>
+          <button class="calc-key op" data-op="÷">÷</button>
+          <button class="calc-key" data-d="7">7</button>
+          <button class="calc-key" data-d="8">8</button>
+          <button class="calc-key" data-d="9">9</button>
+          <button class="calc-key op" data-op="×">×</button>
+          <button class="calc-key" data-d="4">4</button>
+          <button class="calc-key" data-d="5">5</button>
+          <button class="calc-key" data-d="6">6</button>
+          <button class="calc-key op" data-op="−">−</button>
+          <button class="calc-key" data-d="1">1</button>
+          <button class="calc-key" data-d="2">2</button>
+          <button class="calc-key" data-d="3">3</button>
+          <button class="calc-key op" data-op="+">+</button>
+          <button class="calc-key span2" data-d="0">0</button>
+          <button class="calc-key" data-dot>.</button>
+          <button class="calc-key eq" data-eq>=</button>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="pane-marge">
+        <div class="grid-2">
+          <div class="field">
+            <label for="mInkoop">Inkoopprijs (€)</label>
+            <input id="mInkoop" type="number" min="0" step="0.01" placeholder="0,00" />
+          </div>
+          <div class="field">
+            <label for="mVerkoop">Verkoopprijs (€)</label>
+            <input id="mVerkoop" type="number" min="0" step="0.01" placeholder="0,00" />
+          </div>
+        </div>
+        <button class="btn btn-gold" id="btnMarge">Bereken marge</button>
+        <div class="result-panel" id="margeResult" style="display:none">
+          <div class="rp-row"><span>Marge (€)</span><span id="margeEur">€ 0,00</span></div>
+          <div class="rp-row"><span>Marge (%)</span><span id="margePct">0,00%</span></div>
+          <div class="rp-row big"><span>Winstmarge</span><span id="margeBig">€ 0,00</span></div>
+        </div>
+      </div>
+
+      <div class="tab-pane" id="pane-btw">
+        <div class="grid-2">
+          <div class="field">
+            <label for="bBedrag">Bedrag (€)</label>
+            <input id="bBedrag" type="number" min="0" step="0.01" placeholder="0,00" />
+          </div>
+          <div class="field">
+            <label for="bRichting">Berekenen van</label>
+            <select id="bRichting">
+              <option value="excl">Excl. BTW → Incl. BTW</option>
+              <option value="incl">Incl. BTW → Excl. BTW</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label for="bTarief">BTW-tarief (%)</label>
+          <input id="bTarief" type="number" min="0" step="0.1" value="21" />
+        </div>
+        <button class="btn btn-gold" id="btnBtw">Bereken BTW</button>
+        <div class="result-panel" id="btwResult" style="display:none">
+          <div class="rp-row"><span>BTW-bedrag</span><span id="btwBedrag">€ 0,00</span></div>
+          <div class="rp-row big"><span>Resultaat</span><span id="btwTotaal">€ 0,00</span></div>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+  // Tabs
+  const tabs = document.querySelectorAll('.tab');
+  tabs.forEach(function (t) {
+    t.addEventListener('click', function () {
+      tabs.forEach(function (x) { x.classList.remove('active'); });
+      document.querySelectorAll('.tab-pane').forEach(function (p) { p.classList.remove('active'); });
+      this.classList.add('active');
+      document.getElementById('pane-' + this.dataset.tab).classList.add('active');
+    });
+  });
+
+  // Standaard rekenmachine
+  let cur = '0', prev = null, op = null, fresh = true;
+  const display = document.getElementById('calcDisplay');
+  function update() { display.textContent = cur; }
+  function round(n) { return Math.round(n * 1e10) / 1e10; }
+  function inputDigit(d) {
+    if (fresh) { cur = d; fresh = false; }
+    else { cur = cur === '0' ? d : cur + d; }
+    update();
+  }
+  function inputDot() {
+    if (fresh) { cur = '0.'; fresh = false; }
+    else if (cur.indexOf('.') === -1) { cur += '.'; }
+    update();
+  }
+  function setOp(o) {
+    if (op && !fresh) compute();
+    prev = parseFloat(cur);
+    op = o;
+    fresh = true;
+  }
+  function compute() {
+    if (op === null || prev === null) return;
+    const b = parseFloat(cur);
+    let r;
+    switch (op) {
+      case '+': r = prev + b; break;
+      case '-': r = prev - b; break;
+      case '×': r = prev * b; break;
+      case '÷': r = b === 0 ? NaN : prev / b; break;
+    }
+    cur = isFinite(r) ? String(round(r)) : 'Fout';
+    op = null; prev = null; fresh = true;
+    update();
+  }
+  function clearAll() { cur = '0'; prev = null; op = null; fresh = true; update(); }
+  function percent() { cur = String(parseFloat(cur) / 100); fresh = true; update(); }
+  function negate() { cur = String(-parseFloat(cur)); update(); }
+
+  document.getElementById('calcGrid').addEventListener('click', function (e) {
+    const b = e.target.closest('.calc-key');
+    if (!b) return;
+    if (b.dataset.d !== undefined) { inputDigit(b.dataset.d); }
+    else if (b.dataset.dot !== undefined) { inputDot(); }
+    else if (b.dataset.op) { setOp(b.dataset.op); }
+    else if (b.dataset.eq !== undefined) { compute(); }
+    else {
+      const a = b.dataset.act;
+      if (a === 'clear') clearAll();
+      else if (a === 'neg') negate();
+      else if (a === 'pct') percent();
+    }
+  });
+
+  // Marge calculator
+  document.getElementById('btnMarge').addEventListener('click', function () {
+    const inkoop = parseFloat(document.getElementById('mInkoop').value) || 0;
+    const verkoop = parseFloat(document.getElementById('mVerkoop').value) || 0;
+    const marge = verkoop - inkoop;
+    const pct = inkoop > 0 ? (marge / inkoop * 100) : 0;
+    document.getElementById('margeEur').textContent = VH.fmtEUR(marge);
+    document.getElementById('margePct').textContent = VH.fmtNum(pct) + '%';
+    document.getElementById('margeBig').textContent = VH.fmtEUR(marge);
+    document.getElementById('margeResult').style.display = 'block';
+  });
+
+  // BTW calculator
+  document.getElementById('btnBtw').addEventListener('click', function () {
+    const bedrag = parseFloat(document.getElementById('bBedrag').value) || 0;
+    const tarief = parseFloat(document.getElementById('bTarief').value) || 0;
+    const richting = document.getElementById('bRichting').value;
+    let btw, resultaat;
+    if (richting === 'excl') {
+      btw = bedrag * tarief / 100;
+      resultaat = bedrag + btw;
+    } else {
+      resultaat = bedrag / (1 + tarief / 100);
+      btw = bedrag - resultaat;
+    }
+    document.getElementById('btwBedrag').textContent = VH.fmtEUR(btw);
+    document.getElementById('btwTotaal').textContent = VH.fmtEUR(resultaat);
+    document.getElementById('btwResult').style.display = 'block';
+  });
+</script>
+
+</body>
+</html>

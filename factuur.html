@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Factuur · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" title="Terug naar dashboard">←</a>
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Verde Horizonte</span>
+      <h1>Factuur</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <div>
+        <h2>Factuur opstellen</h2>
+        <p class="sub">Maak een factuur en volg de betaalstatus.</p>
+      </div>
+    </div>
+
+    <section class="card">
+      <h3><span class="bar"></span> Nieuwe factuur</h3>
+      <form id="factuurForm" autocomplete="off">
+        <div class="grid-3">
+          <div class="field">
+            <label for="fNummer">Factuurnummer</label>
+            <input id="fNummer" type="text" readonly />
+          </div>
+          <div class="field">
+            <label for="fDatum">Factuurdatum</label>
+            <input id="fDatum" type="date" />
+          </div>
+          <div class="field">
+            <label for="fVervaldatum">Vervaldatum</label>
+            <input id="fVervaldatum" type="date" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="fBedrijf">Bedrijfsnaam klant</label>
+            <input id="fBedrijf" type="text" placeholder="Bedrijfsnaam" />
+          </div>
+          <div class="field">
+            <label for="fContact">Contactpersoon</label>
+            <input id="fContact" type="text" placeholder="Naam contactpersoon" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="fEmail">E-mail</label>
+            <input id="fEmail" type="email" placeholder="naam@bedrijf.nl" />
+          </div>
+          <div class="field">
+            <label for="fStatus">Status</label>
+            <select id="fStatus">
+              <option>Open</option>
+              <option>Betaald</option>
+              <option>Verlopen</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Omschrijving</th><th style="width:90px">Aantal</th><th style="width:130px">Prijs (€)</th><th class="num">Totaal</th><th style="width:46px"></th></tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnAddItem">➕ Regel toevoegen</button>
+
+        <div class="totals-row">
+          <div class="totals-box">
+            <div class="row"><span>Subtotaal</span><span id="subtotal">€ 0,00</span></div>
+            <div class="row"><span>BTW (21%)</span><span id="btw">€ 0,00</span></div>
+            <div class="row grand"><span>Totaal</span><span id="totaal">€ 0,00</span></div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-gold">💾 Factuur opslaan</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3><span class="bar"></span> Opgeslagen facturen</h3>
+      <div class="list" id="factuurList"></div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>Factuur</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ Afdrukken</button>
+          <button class="modal-close" id="modalClose">✕</button>
+        </div>
+      </div>
+      <div id="modalDoc"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+  const KEY = 'vh_invoices';
+  const BTW = 0.21;
+  let facturen = VH.get(KEY, []);
+
+  function addDays(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+  function nextNumber() {
+    return 'FAC-' + new Date().getFullYear() + '-' + String(facturen.length + 1).padStart(3, '0');
+  }
+
+  document.getElementById('fNummer').value = nextNumber();
+  document.getElementById('fDatum').value = VH.today();
+  document.getElementById('fVervaldatum').value = addDays(14);
+
+  function addItemRow(item) {
+    item = item || { omschrijving: '', aantal: 1, prijs: 0 };
+    const tr = document.createElement('tr');
+    tr.className = 'item-row';
+    tr.innerHTML =
+      '<td><input type="text" class="inp-desc" placeholder="Omschrijving" value="' + VH.esc(item.omschrijving) + '" /></td>' +
+      '<td><input type="number" class="inp-qty" min="0" step="1" value="' + item.aantal + '" /></td>' +
+      '<td><input type="number" class="inp-price" min="0" step="0.01" value="' + item.prijs + '" /></td>' +
+      '<td class="num line-total">€ 0,00</td>' +
+      '<td><button type="button" class="btn btn-danger btn-sm btn-rm">✕</button></td>';
+    document.getElementById('itemsBody').appendChild(tr);
+    recalc();
+  }
+
+  function recalc() {
+    let sub = 0;
+    document.querySelectorAll('#itemsBody .item-row').forEach(function (tr) {
+      const qty = parseFloat(tr.querySelector('.inp-qty').value) || 0;
+      const price = parseFloat(tr.querySelector('.inp-price').value) || 0;
+      const line = qty * price;
+      sub += line;
+      tr.querySelector('.line-total').textContent = VH.fmtEUR(line);
+    });
+    const btw = sub * BTW;
+    document.getElementById('subtotal').textContent = VH.fmtEUR(sub);
+    document.getElementById('btw').textContent = VH.fmtEUR(btw);
+    document.getElementById('totaal').textContent = VH.fmtEUR(sub + btw);
+  }
+
+  function collectItems() {
+    return Array.from(document.querySelectorAll('#itemsBody .item-row')).map(function (tr) {
+      return {
+        omschrijving: tr.querySelector('.inp-desc').value.trim(),
+        aantal: parseFloat(tr.querySelector('.inp-qty').value) || 0,
+        prijs: parseFloat(tr.querySelector('.inp-price').value) || 0
+      };
+    }).filter(function (i) { return i.omschrijving !== ''; });
+  }
+
+  function saveFactuur() {
+    const items = collectItems();
+    if (!items.length) { VH.toast('Voeg minimaal één regel toe', 'error'); return; }
+    const sub = items.reduce(function (s, i) { return s + i.aantal * i.prijs; }, 0);
+    const btw = sub * BTW;
+    facturen.unshift({
+      id: VH.uid('f_'),
+      nummer: nextNumber(),
+      datum: document.getElementById('fDatum').value || VH.today(),
+      vervaldatum: document.getElementById('fVervaldatum').value,
+      bedrijf: document.getElementById('fBedrijf').value.trim(),
+      contact: document.getElementById('fContact').value.trim(),
+      email: document.getElementById('fEmail').value.trim(),
+      status: document.getElementById('fStatus').value,
+      items: items,
+      subtotaal: sub,
+      btw: btw,
+      totaal: sub + btw
+    });
+    VH.set(KEY, facturen);
+    renderFacturen();
+    document.getElementById('factuurForm').reset();
+    document.getElementById('itemsBody').innerHTML = '';
+    document.getElementById('fNummer').value = nextNumber();
+    document.getElementById('fDatum').value = VH.today();
+    document.getElementById('fVervaldatum').value = addDays(14);
+    addItemRow();
+    VH.toast('Factuur opgeslagen', 'success');
+  }
+  function badgeFor(status) {
+    return status === 'Betaald' ? 'badge-success' : (status === 'Verlopen' ? 'badge-danger' : 'badge-warning');
+  }
+
+  function renderFacturen() {
+    const list = document.getElementById('factuurList');
+    if (!facturen.length) {
+      list.innerHTML = '<div class="empty"><span class="icon">🧾</span>Nog geen facturen opgeslagen.</div>';
+      return;
+    }
+    list.innerHTML = facturen.map(function (f) {
+      const paidBtn = f.status !== 'Betaald'
+        ? '<button class="btn btn-ghost btn-sm" data-paid="' + f.id + '">✓ Betaald</button>'
+        : '';
+      return '<div class="item">' +
+        '<div class="grow">' +
+          '<div class="title">' + VH.esc(f.nummer) + '</div>' +
+          '<div class="meta">' + VH.esc(f.bedrijf || '—') + ' · ' + VH.esc(f.datum) +
+            (f.vervaldatum ? ' · vervalt ' + VH.esc(f.vervaldatum) : '') + '</div>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<span class="badge ' + badgeFor(f.status) + '">' + VH.esc(f.status) + '</span>' +
+          '<span class="badge badge-gold">' + VH.fmtEUR(f.totaal) + '</span>' +
+          '<button class="btn btn-ghost btn-sm" data-view="' + f.id + '">👁 Bekijk</button>' +
+          paidBtn +
+          '<button class="btn btn-danger btn-sm" data-del="' + f.id + '">✕</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function docHTML(f) {
+    const rows = f.items.map(function (i) {
+      return '<tr><td>' + VH.esc(i.omschrijving) + '</td><td>' + VH.fmtNum(i.aantal, 0) + '</td><td>' +
+        VH.fmtEUR(i.prijs) + '</td><td class="num">' + VH.fmtEUR(i.aantal * i.prijs) + '</td></tr>';
+    }).join('');
+    return '<div class="doc">' +
+      '<div class="doc-head">' +
+        '<div class="brand"><strong>Verde Horizonte</strong><div class="tag">Factuur</div></div>' +
+        '<div class="doc-meta"><strong>' + VH.esc(f.nummer) + '</strong><br>Factuurdatum: ' + VH.esc(f.datum) +
+          '<br>Vervaldatum: ' + VH.esc(f.vervaldatum || '—') + '</div>' +
+      '</div>' +
+      '<div class="doc-party">' +
+        '<div><div class="lbl">Aan</div><strong>' + VH.esc(f.bedrijf || '—') + '</strong><br>' + VH.esc(f.contact || '') +
+          '<br>' + VH.esc(f.email || '') + '</div>' +
+        '<div><div class="lbl">Van</div><strong>Verde Horizonte</strong><br>info@verdehorizonte.nl</div>' +
+      '</div>' +
+      '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th class="num">Totaal</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div style="margin-left:auto;width:260px;color:#1a2233;font-size:14px">' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0"><span>Subtotaal</span><span>' + VH.fmtEUR(f.subtotaal) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0"><span>BTW (21%)</span><span>' + VH.fmtEUR(f.btw) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid #e5e9f2;font-weight:800;font-size:16px"><span>Totaal</span><span>' + VH.fmtEUR(f.totaal) + '</span></div>' +
+      '</div>' +
+      '<div class="doc-foot">Gelieve het totaalbedrag binnen 14 dagen te voldoen. Status: ' + VH.esc(f.status) + '.</div>' +
+    '</div>';
+  }
+
+  function openFactuur(id) {
+    const f = facturen.find(function (x) { return x.id === id; });
+    if (!f) return;
+    document.getElementById('modalDoc').innerHTML = docHTML(f);
+    document.getElementById('modal').classList.add('open');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+  document.getElementById('btnAddItem').addEventListener('click', function () { addItemRow(); });
+  document.getElementById('itemsBody').addEventListener('input', recalc);
+  document.getElementById('itemsBody').addEventListener('click', function (e) {
+    const btn = e.target.closest('.btn-rm');
+    if (btn) { btn.closest('tr').remove(); recalc(); }
+  });
+  document.getElementById('factuurForm').addEventListener('submit', function (e) { e.preventDefault(); saveFactuur(); });
+  document.getElementById('factuurList').addEventListener('click', function (e) {
+    const v = e.target.closest('[data-view]');
+    const d = e.target.closest('[data-del]');
+    const p = e.target.closest('[data-paid]');
+    if (v) { openFactuur(v.dataset.view); return; }
+    if (p) {
+      const f = facturen.find(function (x) { return x.id === p.dataset.paid; });
+      if (f) { f.status = 'Betaald'; VH.set(KEY, facturen); renderFacturen(); VH.toast('Factuur gemarkeerd als betaald', 'success'); }
+      return;
+    }
+    if (d) {
+      if (!confirm('Deze factuur verwijderen?')) return;
+      facturen = facturen.filter(function (x) { return x.id !== d.dataset.del; });
+      VH.set(KEY, facturen);
+      renderFacturen();
+      VH.toast('Factuur verwijderd', 'success');
+    }
+  });
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+
+  addItemRow();
+  renderFacturen();
+
+</script>
+
+</body>
+</html>

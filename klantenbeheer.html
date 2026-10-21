@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Klanten · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" title="Terug naar dashboard">←</a>
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Verde Horizonte</span>
+      <h1>Klantenbeheer</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <div>
+        <h2>Klantenbestand</h2>
+        <p class="sub">Voeg klanten toe, bewerk gegevens en zoek in je bestand.</p>
+      </div>
+      <button class="btn btn-ghost" id="btnNew">➕ Nieuwe klant</button>
+    </div>
+
+    <section class="card" id="formCard">
+      <h3><span class="bar"></span> <span id="formTitle">Nieuwe klant</span></h3>
+      <form id="klantForm" autocomplete="off">
+        <input type="hidden" id="fId" />
+        <div class="grid-2">
+          <div class="field">
+            <label for="fBedrijf">Bedrijfsnaam <span class="req">*</span></label>
+            <input id="fBedrijf" type="text" placeholder="Bedrijfsnaam" />
+          </div>
+          <div class="field">
+            <label for="fContact">Contactpersoon</label>
+            <input id="fContact" type="text" placeholder="Naam contactpersoon" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="fEmail">E-mail</label>
+            <input id="fEmail" type="email" placeholder="naam@bedrijf.nl" />
+          </div>
+          <div class="field">
+            <label for="fTelefoon">Telefoon</label>
+            <input id="fTelefoon" type="tel" placeholder="06 12345678" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="fAdres">Adres</label>
+          <input id="fAdres" type="text" placeholder="Straat, postcode, plaats" />
+        </div>
+        <div class="field">
+          <label for="fNotities">Notities</label>
+          <textarea id="fNotities" placeholder="Extra informatie over deze klant..."></textarea>
+        </div>
+        <button type="submit" class="btn btn-gold" id="btnSubmit">💾 Klant opslaan</button>
+        <button type="button" class="btn btn-ghost" id="btnCancel" style="display:none">Annuleren</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3><span class="bar"></span> Overzicht (<span id="count">0</span>)</h3>
+      <div class="search">
+        <input id="search" type="text" placeholder="Zoek op naam, bedrijf of e-mail..." />
+      </div>
+      <div class="list" id="klantList"></div>
+    </section>
+  </main>
+
+  <script src="app.js"></script>
+  <script>
+  const KEY = 'vh_customers';
+  let klanten = VH.get(KEY, []);
+
+  function render() {
+    const q = document.getElementById('search').value.trim().toLowerCase();
+    const rows = q ? klanten.filter(function (k) {
+      return (k.bedrijf + ' ' + k.contact + ' ' + k.email).toLowerCase().indexOf(q) !== -1;
+    }) : klanten;
+
+    document.getElementById('count').textContent = rows.length;
+    const list = document.getElementById('klantList');
+
+    if (!rows.length) {
+      list.innerHTML = '<div class="empty"><span class="icon">👥</span>Geen klanten gevonden.</div>';
+      return;
+    }
+
+    list.innerHTML = rows.map(function (k) {
+      return '<div class="item">' +
+        '<div class="grow">' +
+          '<div class="title">' + VH.esc(k.bedrijf) + '</div>' +
+          '<div class="meta">' + VH.esc(k.contact || '—') + ' · ' + VH.esc(k.email || 'geen e-mail') +
+            (k.telefoon ? ' · ' + VH.esc(k.telefoon) : '') + '</div>' +
+          (k.adres ? '<div class="meta">📍 ' + VH.esc(k.adres) + '</div>' : '') +
+          (k.notities ? '<div class="meta"><span class="note">' + VH.esc(k.notities) + '</span></div>' : '') +
+        '</div>' +
+        '<div class="actions">' +
+          '<button class="btn btn-ghost btn-sm" data-edit="' + k.id + '">✏️ Bewerk</button>' +
+          '<button class="btn btn-danger btn-sm" data-del="' + k.id + '">✕</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function resetForm() {
+    document.getElementById('klantForm').reset();
+    document.getElementById('fId').value = '';
+    document.getElementById('formTitle').textContent = 'Nieuwe klant';
+    document.getElementById('btnSubmit').textContent = '💾 Klant opslaan';
+    document.getElementById('btnCancel').style.display = 'none';
+  }
+
+  document.getElementById('klantForm').addEventListener('submit', function (e) {
+    e.preventDefault();
+    const bedrijf = document.getElementById('fBedrijf').value.trim();
+    if (!bedrijf) { VH.toast('Bedrijfsnaam is verplicht', 'error'); return; }
+
+    const data = {
+      bedrijf: bedrijf,
+      contact: document.getElementById('fContact').value.trim(),
+      email: document.getElementById('fEmail').value.trim(),
+      telefoon: document.getElementById('fTelefoon').value.trim(),
+      adres: document.getElementById('fAdres').value.trim(),
+      notities: document.getElementById('fNotities').value.trim()
+    };
+
+    const id = document.getElementById('fId').value;
+    if (id) {
+      const k = klanten.find(function (x) { return x.id === id; });
+      if (k) Object.assign(k, data);
+      VH.toast('Klant bijgewerkt', 'success');
+    } else {
+      data.id = VH.uid('k_');
+      klanten.unshift(data);
+      VH.toast('Klant toegevoegd', 'success');
+    }
+
+    VH.set(KEY, klanten);
+    resetForm();
+    render();
+  });
+
+  document.getElementById('btnNew').addEventListener('click', function () {
+    resetForm();
+    document.getElementById('fBedrijf').focus();
+    document.getElementById('formCard').scrollIntoView({ behavior: 'smooth' });
+  });
+
+  document.getElementById('btnCancel').addEventListener('click', resetForm);
+  document.getElementById('search').addEventListener('input', render);
+
+  document.getElementById('klantList').addEventListener('click', function (e) {
+    const edit = e.target.closest('[data-edit]');
+    const del = e.target.closest('[data-del]');
+
+    if (del) {
+      if (!confirm('Deze klant verwijderen?')) return;
+      klanten = klanten.filter(function (k) { return k.id !== del.dataset.del; });
+      VH.set(KEY, klanten);
+      render();
+      VH.toast('Klant verwijderd', 'success');
+      return;
+    }
+
+    if (edit) {
+      const k = klanten.find(function (x) { return x.id === edit.dataset.edit; });
+      if (!k) return;
+      document.getElementById('fId').value = k.id;
+      document.getElementById('fBedrijf').value = k.bedrijf;
+      document.getElementById('fContact').value = k.contact || '';
+      document.getElementById('fEmail').value = k.email || '';
+      document.getElementById('fTelefoon').value = k.telefoon || '';
+      document.getElementById('fAdres').value = k.adres || '';
+      document.getElementById('fNotities').value = k.notities || '';
+      document.getElementById('formTitle').textContent = 'Bewerk klant';
+      document.getElementById('btnSubmit').textContent = '💾 Wijzigingen opslaan';
+      document.getElementById('btnCancel').style.display = 'inline-flex';
+      document.getElementById('formCard').scrollIntoView({ behavior: 'smooth' });
+    }
+  });
+
+  render();
+</script>
+
+</body>
+</html>

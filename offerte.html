@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Offerte · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <a class="back" href="index.html" title="Terug naar dashboard">←</a>
+    <div class="topbar-title">
+      <span class="topbar-eyebrow">Verde Horizonte</span>
+      <h1>Offerte</h1>
+    </div>
+  </header>
+
+  <main class="container">
+    <div class="page-head">
+      <div>
+        <h2>Offerte opstellen</h2>
+        <p class="sub">Maak een offerte met regels, BTW en totalen.</p>
+      </div>
+    </div>
+
+    <section class="card">
+      <h3><span class="bar"></span> Nieuwe offerte</h3>
+      <form id="offerteForm" autocomplete="off">
+        <div class="grid-3">
+          <div class="field">
+            <label for="qNummer">Offertenummer</label>
+            <input id="qNummer" type="text" readonly />
+          </div>
+          <div class="field">
+            <label for="qDatum">Datum</label>
+            <input id="qDatum" type="date" />
+          </div>
+          <div class="field">
+            <label for="qGeldig">Geldig tot</label>
+            <input id="qGeldig" type="date" />
+          </div>
+        </div>
+        <div class="grid-2">
+          <div class="field">
+            <label for="qBedrijf">Bedrijfsnaam klant</label>
+            <input id="qBedrijf" type="text" placeholder="Bedrijfsnaam" />
+          </div>
+          <div class="field">
+            <label for="qContact">Contactpersoon</label>
+            <input id="qContact" type="text" placeholder="Naam contactpersoon" />
+          </div>
+        </div>
+        <div class="field">
+          <label for="qEmail">E-mail</label>
+          <input id="qEmail" type="email" placeholder="naam@bedrijf.nl" />
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>Omschrijving</th><th style="width:90px">Aantal</th><th style="width:130px">Prijs (€)</th><th class="num">Totaal</th><th style="width:46px"></th></tr>
+            </thead>
+            <tbody id="itemsBody"></tbody>
+          </table>
+        </div>
+        <button type="button" class="btn btn-ghost btn-sm" id="btnAddItem">➕ Regel toevoegen</button>
+
+        <div class="totals-row">
+          <div class="totals-box">
+            <div class="row"><span>Subtotaal</span><span id="subtotal">€ 0,00</span></div>
+            <div class="row"><span>BTW (21%)</span><span id="btw">€ 0,00</span></div>
+            <div class="row grand"><span>Totaal</span><span id="totaal">€ 0,00</span></div>
+          </div>
+        </div>
+
+        <button type="submit" class="btn btn-gold">💾 Offerte opslaan</button>
+      </form>
+    </section>
+
+    <section class="card">
+      <h3><span class="bar"></span> Opgeslagen offertes</h3>
+      <div class="list" id="quoteList"></div>
+    </section>
+  </main>
+
+  <div class="modal-backdrop" id="modal">
+    <div class="modal">
+      <div class="modal-head">
+        <h3>Offerte</h3>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-ghost btn-sm" onclick="window.print()">🖨️ Afdrukken</button>
+          <button class="modal-close" id="modalClose">✕</button>
+        </div>
+      </div>
+      <div id="modalDoc"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+  const KEY = 'vh_quotes';
+  const BTW = 0.21;
+  let quotes = VH.get(KEY, []);
+
+  function addDays(days) {
+    const d = new Date();
+    d.setDate(d.getDate() + days);
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+  }
+  function nextNumber() {
+    return 'OFF-' + new Date().getFullYear() + '-' + String(quotes.length + 1).padStart(3, '0');
+  }
+
+  document.getElementById('qNummer').value = nextNumber();
+  document.getElementById('qDatum').value = VH.today();
+  document.getElementById('qGeldig').value = addDays(30);
+
+  function addItemRow(item) {
+    item = item || { omschrijving: '', aantal: 1, prijs: 0 };
+    const tr = document.createElement('tr');
+    tr.className = 'item-row';
+    tr.innerHTML =
+      '<td><input type="text" class="inp-desc" placeholder="Omschrijving" value="' + VH.esc(item.omschrijving) + '" /></td>' +
+      '<td><input type="number" class="inp-qty" min="0" step="1" value="' + item.aantal + '" /></td>' +
+      '<td><input type="number" class="inp-price" min="0" step="0.01" value="' + item.prijs + '" /></td>' +
+      '<td class="num line-total">€ 0,00</td>' +
+      '<td><button type="button" class="btn btn-danger btn-sm btn-rm">✕</button></td>';
+    document.getElementById('itemsBody').appendChild(tr);
+    recalc();
+  }
+
+  function recalc() {
+    let sub = 0;
+    document.querySelectorAll('#itemsBody .item-row').forEach(function (tr) {
+      const qty = parseFloat(tr.querySelector('.inp-qty').value) || 0;
+      const price = parseFloat(tr.querySelector('.inp-price').value) || 0;
+      const line = qty * price;
+      sub += line;
+      tr.querySelector('.line-total').textContent = VH.fmtEUR(line);
+    });
+    const btw = sub * BTW;
+    document.getElementById('subtotal').textContent = VH.fmtEUR(sub);
+    document.getElementById('btw').textContent = VH.fmtEUR(btw);
+    document.getElementById('totaal').textContent = VH.fmtEUR(sub + btw);
+  }
+
+  function collectItems() {
+    return Array.from(document.querySelectorAll('#itemsBody .item-row')).map(function (tr) {
+      return {
+        omschrijving: tr.querySelector('.inp-desc').value.trim(),
+        aantal: parseFloat(tr.querySelector('.inp-qty').value) || 0,
+        prijs: parseFloat(tr.querySelector('.inp-price').value) || 0
+      };
+    }).filter(function (i) { return i.omschrijving !== ''; });
+  }
+
+  function saveQuote() {
+    const items = collectItems();
+    if (!items.length) { VH.toast('Voeg minimaal één regel toe', 'error'); return; }
+    const sub = items.reduce(function (s, i) { return s + i.aantal * i.prijs; }, 0);
+    const btw = sub * BTW;
+    quotes.unshift({
+      id: VH.uid('q_'),
+      nummer: nextNumber(),
+      datum: document.getElementById('qDatum').value || VH.today(),
+      geldigTot: document.getElementById('qGeldig').value,
+      bedrijf: document.getElementById('qBedrijf').value.trim(),
+      contact: document.getElementById('qContact').value.trim(),
+      email: document.getElementById('qEmail').value.trim(),
+      items: items,
+      subtotaal: sub,
+      btw: btw,
+      totaal: sub + btw
+    });
+    VH.set(KEY, quotes);
+    renderQuotes();
+    document.getElementById('offerteForm').reset();
+    document.getElementById('itemsBody').innerHTML = '';
+    document.getElementById('qNummer').value = nextNumber();
+    document.getElementById('qDatum').value = VH.today();
+    document.getElementById('qGeldig').value = addDays(30);
+    addItemRow();
+    VH.toast('Offerte opgeslagen', 'success');
+  }
+  function renderQuotes() {
+    const list = document.getElementById('quoteList');
+    if (!quotes.length) {
+      list.innerHTML = '<div class="empty"><span class="icon">📄</span>Nog geen offertes opgeslagen.</div>';
+      return;
+    }
+    list.innerHTML = quotes.map(function (q) {
+      return '<div class="item">' +
+        '<div class="grow">' +
+          '<div class="title">' + VH.esc(q.nummer) + '</div>' +
+          '<div class="meta">' + VH.esc(q.bedrijf || '—') + ' · ' + VH.esc(q.datum) + ' · ' + q.items.length + ' regel(s)</div>' +
+        '</div>' +
+        '<div class="actions">' +
+          '<span class="badge badge-gold">' + VH.fmtEUR(q.totaal) + '</span>' +
+          '<button class="btn btn-ghost btn-sm" data-view="' + q.id + '">👁 Bekijk</button>' +
+          '<button class="btn btn-danger btn-sm" data-del="' + q.id + '">✕</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function docHTML(q) {
+    const rows = q.items.map(function (i) {
+      return '<tr><td>' + VH.esc(i.omschrijving) + '</td><td>' + VH.fmtNum(i.aantal, 0) + '</td><td>' +
+        VH.fmtEUR(i.prijs) + '</td><td class="num">' + VH.fmtEUR(i.aantal * i.prijs) + '</td></tr>';
+    }).join('');
+    return '<div class="doc">' +
+      '<div class="doc-head">' +
+        '<div class="brand"><strong>Verde Horizonte</strong><div class="tag">Offerte</div></div>' +
+        '<div class="doc-meta"><strong>' + VH.esc(q.nummer) + '</strong><br>Datum: ' + VH.esc(q.datum) +
+          '<br>Geldig tot: ' + VH.esc(q.geldigTot || '—') + '</div>' +
+      '</div>' +
+      '<div class="doc-party">' +
+        '<div><div class="lbl">Aan</div><strong>' + VH.esc(q.bedrijf || '—') + '</strong><br>' + VH.esc(q.contact || '') +
+          '<br>' + VH.esc(q.email || '') + '</div>' +
+        '<div><div class="lbl">Van</div><strong>Verde Horizonte</strong><br>info@verdehorizonte.nl</div>' +
+      '</div>' +
+      '<table><thead><tr><th>Omschrijving</th><th>Aantal</th><th>Prijs</th><th class="num">Totaal</th></tr></thead><tbody>' + rows + '</tbody></table>' +
+      '<div style="margin-left:auto;width:260px;color:#1a2233;font-size:14px">' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0"><span>Subtotaal</span><span>' + VH.fmtEUR(q.subtotaal) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:5px 0"><span>BTW (21%)</span><span>' + VH.fmtEUR(q.btw) + '</span></div>' +
+        '<div style="display:flex;justify-content:space-between;padding:8px 0;border-top:1px solid #e5e9f2;font-weight:800;font-size:16px"><span>Totaal</span><span>' + VH.fmtEUR(q.totaal) + '</span></div>' +
+      '</div>' +
+      '<div class="doc-foot">Bedankt voor uw aanvraag. Bij vragen kunt u contact met ons opnemen.</div>' +
+    '</div>';
+  }
+
+  function openQuote(id) {
+    const q = quotes.find(function (x) { return x.id === id; });
+    if (!q) return;
+    document.getElementById('modalDoc').innerHTML = docHTML(q);
+    document.getElementById('modal').classList.add('open');
+  }
+  function closeModal() { document.getElementById('modal').classList.remove('open'); }
+
+  document.getElementById('btnAddItem').addEventListener('click', function () { addItemRow(); });
+  document.getElementById('itemsBody').addEventListener('input', recalc);
+  document.getElementById('itemsBody').addEventListener('click', function (e) {
+    const btn = e.target.closest('.btn-rm');
+    if (btn) { btn.closest('tr').remove(); recalc(); }
+  });
+  document.getElementById('offerteForm').addEventListener('submit', function (e) { e.preventDefault(); saveQuote(); });
+  document.getElementById('quoteList').addEventListener('click', function (e) {
+    const v = e.target.closest('[data-view]');
+    const d = e.target.closest('[data-del]');
+    if (v) { openQuote(v.dataset.view); return; }
+    if (d) {
+      if (!confirm('Deze offerte verwijderen?')) return;
+      quotes = quotes.filter(function (x) { return x.id !== d.dataset.del; });
+      VH.set(KEY, quotes);
+      renderQuotes();
+      VH.toast('Offerte verwijderd', 'success');
+    }
+  });
+  document.getElementById('modalClose').addEventListener('click', closeModal);
+  document.getElementById('modal').addEventListener('click', function (e) { if (e.target === this) closeModal(); });
+
+  addItemRow();
+  renderQuotes();
+
+</script>
+
+</body>
+</html>
