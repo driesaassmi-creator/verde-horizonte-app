@@ -106,8 +106,8 @@ window.VH = (function () {
       return true;
     }
 
-    // Arrays: upsert de rijen van de ingelogde gebruiker en verwijder alleen
-    // diens rijen die niet meer in de lijst staan (nooit die van anderen).
+    // Arrays: pure upsert (onConflict op 'id'). Bestaande rijen worden bijgewerkt,
+    // nieuwe rijen toegevoegd. Rijen van andere gebruikers worden nooit geraakt.
     const rows = Array.isArray(value) ? value : [];
     const payload = rows.map(function (row) {
       const copy = Object.assign({}, row);
@@ -116,22 +116,8 @@ window.VH = (function () {
     });
 
     if (payload.length) {
-      const { error: upsertError } = await supabaseClient.from(table).upsert(payload);
+      const { error: upsertError } = await supabaseClient.from(table).upsert(payload, { onConflict: 'id' });
       if (upsertError) { console.error('VH.set', key, upsertError); toast('Opslaan mislukt', 'error'); return false; }
-    }
-
-    // Verwijder alleen de rijen van deze gebruiker die niet meer bestaan.
-    if (user_id) {
-      let delQuery = supabaseClient.from(table).delete().eq('user_id', user_id);
-      const ids = payload.map(function (row) { return row.id; }).filter(Boolean);
-      if (ids.length) {
-        const list = ids.map(function (id) {
-          return '"' + String(id).replace(/"/g, '""') + '"';
-        }).join(',');
-        delQuery = delQuery.not('id', 'in', '(' + list + ')');
-      }
-      const { error: delError } = await delQuery;
-      if (delError) { console.error('VH.set', key, delError); toast('Opslaan mislukt', 'error'); return false; }
     }
 
     return true;
