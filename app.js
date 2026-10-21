@@ -195,7 +195,9 @@ window.VH = (function () {
   // ---- Supabase Auth: inlog-controle en uitloggen ----
   function isLoginPage() {
     const p = (location.pathname || '').split('/').pop().toLowerCase();
-    return p === 'login.html' || p === 'login';
+    return p === 'login.html' || p === 'login' ||
+           p === 'reset-password.html' || p === 'reset-password' ||
+           p === 'update-password.html' || p === 'update-password';
   }
 
   // Stuur niet-ingelogde gebruikers door naar login.html (behalve op de login-pagina zelf).
@@ -214,6 +216,22 @@ window.VH = (function () {
   async function logout() {
     try { await supabaseClient.auth.signOut(); } catch (err) { console.error('VH.logout', err); }
     location.replace('login.html');
+  }
+
+  // Stuur een wachtwoord-reset e-mail naar de gebruiker.
+  async function resetPassword(email) {
+    const { error } = await supabaseClient.auth.resetPasswordForEmail(email, {
+      redirectTo: window.location.origin + '/update-password.html'
+    });
+    if (error) console.error('VH.resetPassword', error);
+    return { error: error || null };
+  }
+
+  // Stel een nieuw wachtwoord in voor de ingelogde (herstel-)sessie.
+  async function updatePassword(newPassword) {
+    const { error } = await supabaseClient.auth.updateUser({ password: newPassword });
+    if (error) console.error('VH.updatePassword', error);
+    return { error: error || null };
   }
 
   requireAuth();
@@ -237,6 +255,8 @@ window.VH = (function () {
     fmtDuration: fmtDuration,
     toast: toast,
     logout: logout,
-    requireAuth: requireAuth
+    requireAuth: requireAuth,
+    resetPassword: resetPassword,
+    updatePassword: updatePassword
   };
 })();
