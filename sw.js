@@ -1,5 +1,5 @@
 /* Verde Horizonte Admin — service worker (PWA offline) */
-const CACHE = 'vh-admin-v3';
+const CACHE = 'vh-admin-v4';
 
 // Alle statische bestanden die offline beschikbaar moeten zijn.
 const ASSETS = [
@@ -15,12 +15,16 @@ const ASSETS = [
   './nieuwe-lead.html',
   './timer.html',
   './mijn-kaartje.html',
+  './offline.html',
   './style.css',
   './app.js',
   './supabase.js',
   './manifest.json',
   './icon.svg'
 ];
+
+// Laatste fallback voor navigatie als de pagina zelf niet gecached is.
+const OFFLINE_FALLBACK = './offline.html';
 
 self.addEventListener('install', (e) => {
   e.waitUntil(
@@ -41,29 +45,41 @@ self.addEventListener('activate', (e) => {
 self.addEventListener('fetch', (e) => {
   const url = new URL(e.request.url);
 
-  // Supabase API-aanroepen gaan altijd naar het netwerk (niet cachen);
-  // als ze falen door offline, bieden we geen gecachte respons aan.
+  // Supabase API-aanroepen gaan altijd naar het netwerk (niet cachen).
   if (url.hostname.includes('supabase.co')) {
     return;
   }
 
   if (e.request.method !== 'GET') return;
 
-  // Navigatie-aanvragen (naar HTML-pagina's): cache-first met netwerk-fallback.
+  // ---- Navigatie-aanvragen (nieuwe HTML-pagina) ----
+  // Strategie: 1) netwerk-first, 2) gecachte versie van die pagina,
+  // 3) algemene offline-pagina (fallback) als de pagina niet gecached is.
   if (e.request.mode === 'navigate') {
     e.respondWith(
       fetch(e.request)
         .then((res) => {
-          const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put(e.request, copy));
+          // Alleen succesvolle HTML-responses cachen.
+          if (res && res.status === 200 && res.type === 'basic') {
+            const copy = res.clone();
+            caches.open(CACHE).then((c) => c.put(e.request, copy));
+          }
           return res;
         })
-        .catch(() => caches.match(e.request).then((cached) => cached || caches.match('./index.html')))
+        .catch(() => {
+          // Netwerk faalde (offline). Zoek de gecachte versie van de
+          // gevraagde URL. Zo niet, geef de specifieke pagina via pathname,
+          // en als laatste redmiddel de algemene offline-pagina.
+          return caches
+            .match(e.request)
+            .then((cached) => cached || caches.match(url.pathname))
+            .then((cached) => cached || caches.match(OFFLINE_FALLBACK));
+        })
     );
     return;
   }
 
-  // Statische assets: cache-first, daarna netwerk (en runtime-cachen).
+  // ---- Statische assets: cache-first, daarna netwerk (en runtime-cachen). ----
   e.respondWith(
     caches.match(e.request).then((cached) => {
       if (cached) return cached;
@@ -75,7 +91,7 @@ self.addEventListener('fetch', (e) => {
           }
           return res;
         })
-        .catch(() => caches.match('./index.html'));
+        .catch(() => caches.match(OFFLINE_FALLBACK));
     })
   );
 });

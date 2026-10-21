@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="nl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#05070d" />
+  <title>Offline · Verde Horizonte</title>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" href="icon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header class="brand-hero">
+    <div class="brand-logo">🌅</div>
+    <h1>Verde Horizonte</h1>
+    <p class="tagline">Je bent offline</p>
+  </header>
+
+  <main class="container" style="max-width:420px">
+    <section class="card">
+      <h3><span class="bar"></span> Geen verbinding</h3>
+      <p class="sub" style="margin-bottom:14px">
+        Deze pagina is niet beschikbaar zonder internetverbinding en staat nog niet in de offline-cache.
+      </p>
+      <p class="sub">
+        Controleer je verbinding en probeer het opnieuw zodra je weer online bent.
+        Je eerder bezochte pagina's blijven wel beschikbaar.
+      </p>
+      <div style="margin-top:16px; display:flex; gap:8px; flex-wrap:wrap">
+        <button class="btn btn-gold" onclick="location.reload()">Opnieuw proberen</button>
+        <a class="btn btn-ghost" href="index.html">Naar dashboard</a>
+      </div>
+    </section>
+
+    <footer class="foot-note">
+      Alle gegevens worden veilig opgeslagen in Supabase.
+    </footer>
+  </main>
+</body>
+</html>
