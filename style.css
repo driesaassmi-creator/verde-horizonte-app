@@ -176,12 +176,22 @@ input[type="date"] { color-scheme: dark; }
 /* ---- Offline-indicator ---- */
 .vh-offline {
   position: fixed; top: 0; left: 0; right: 0; z-index: 400;
+  display: flex; align-items: center; justify-content: center; gap: 12px;
   padding: 8px 16px; text-align: center;
   background: var(--danger); color: #fff;
   font-size: 13px; font-weight: 700; letter-spacing: 0.3px;
   transform: translateY(-100%); transition: transform 0.25s ease;
 }
 .vh-offline.show { transform: translateY(0); }
+.vh-offline .vh-sync-btn {
+  flex: 0 0 auto;
+  padding: 4px 12px; border-radius: 8px;
+  border: 1px solid rgba(255,255,255,0.5); background: rgba(255,255,255,0.12);
+  color: #fff; font-size: 12px; font-weight: 700; letter-spacing: 0.3px;
+  cursor: pointer; transition: background 0.15s;
+}
+.vh-offline .vh-sync-btn:hover { background: rgba(255,255,255,0.24); }
+.vh-offline .vh-sync-btn:disabled { opacity: 0.55; cursor: default; }
 
 /* ---- Table ---- */
 .table-wrap { overflow-x: auto; }

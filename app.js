@@ -72,22 +72,25 @@ window.VH = (function () {
     return queueGet().length;
   }
 
-  // ---- Offline-indicator ----
+  // Referentie naar de 'Sync nu'-knop in de balk (indien aanwezig).
+  let syncBtn = null;
+
+  // ---- Offline-indicator (met handmatige 'Sync nu'-knop) ----
   function updateOfflineBar() {
     const pending = queueCount();
     let el = document.getElementById('vh-offline');
     if (!pending) {
       // Geen wachtende wijzigingen: alleen tonen als de verbinding weg is.
       if (!navigator.onLine) {
-        ensureOfflineBar('⚠ Offline');
+        ensureOfflineBar('⚠ Offline', false);
       } else if (el) {
         el.classList.remove('show');
       }
       return;
     }
-    ensureOfflineBar('⚠ ' + pending + ' wijziging(en) wachten op sync');
+    ensureOfflineBar('⚠ ' + pending + ' wijziging(en) wachten op sync', true);
   }
-  function ensureOfflineBar(text) {
+  function ensureOfflineBar(text, showSync) {
     let el = document.getElementById('vh-offline');
     if (!el) {
       el = document.createElement('div');
@@ -95,25 +98,47 @@ window.VH = (function () {
       el.className = 'vh-offline';
       document.body.appendChild(el);
     }
-    el.textContent = text;
+    // Tekst + optioneel een 'Sync nu'-knop.
+    el.textContent = '';
+    const label = document.createElement('span');
+    label.textContent = text;
+    el.appendChild(label);
+    if (showSync) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.id = 'vh-sync-btn';
+      btn.className = 'vh-sync-btn';
+      btn.textContent = 'Sync nu';
+      btn.addEventListener('click', function () { processSyncQueue(); });
+      el.appendChild(btn);
+      syncBtn = btn;
+    } else {
+      syncBtn = null;
+    }
     el.classList.add('show');
+  }
+  function setSyncBusy(busy) {
+    if (syncBtn) {
+      syncBtn.disabled = busy;
+      syncBtn.textContent = busy ? 'Bezig...' : 'Sync nu';
+    }
   }
   function setOnline(online) {
     if (online) {
+      // NIET meer automatisch syncen — alleen nog handmatig via de knop.
       const pending = queueCount();
       if (!pending) {
         const el = document.getElementById('vh-offline');
         if (el) el.classList.remove('show');
+      } else {
+        updateOfflineBar();
       }
-      // Als we online zijn én er acties in de wachtrij staan, voer sync uit.
-      if (pending) processSyncQueue();
     } else {
       updateOfflineBar();
     }
   }
   function refreshOnlineState() {
     updateOfflineBar();
-    if (navigator.onLine !== false && queueCount()) processSyncQueue();
   }
 
   // Haal het id van de ingelogde gebruiker op (null als niet ingelogd).
@@ -212,6 +237,7 @@ window.VH = (function () {
     const queue = queueGet();
     if (!queue.length) return;
     syncing = true;
+    setSyncBusy(true);
     try {
       for (let i = 0; i < queue.length; i++) {
         const action = queue[i];
@@ -236,9 +262,11 @@ window.VH = (function () {
       toast('Wijzigingen gesynchroniseerd', 'success');
     } catch (err) {
       console.error('VH.processSyncQueue', err);
+      toast('Sync mislukt — probeer het opnieuw', 'error');
       // Behoud de wachtrij voor een volgende poging.
     } finally {
       syncing = false;
+      setSyncBusy(false);
       updateOfflineBar();
     }
   }
