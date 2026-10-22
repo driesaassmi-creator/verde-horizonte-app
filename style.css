@@ -313,3 +313,15 @@ tr:hover td { background: rgba(91, 140, 255, 0.04); }
 
 
 
+@media (max-width: 768px) {
+  html, body {
+    height: auto;
+    min-height: 100dvh; /* Zorgt dat de pagina meeschaalt met het toetsenbord */
+  }
+  input, select, textarea {
+    font-size: 16px; /* Voorkomt dat Safari/Chrome inzoomt op het veld */
+  }
+  .container {
+    padding-bottom: 100px; /* Zorgt dat er altijd ruimte is om naar beneden te scrollen */
+  }
+}
